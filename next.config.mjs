@@ -19,6 +19,10 @@ const nextConfig = {
   },
   // Performance optimizations
   poweredByHeader: false,
+  // SEO optimizations
+  trailingSlash: false,
+  generateEtags: true,
+  compress: true,
   // Simplified webpack configuration to fix chunk loading issues
   webpack: (config, { dev }) => {
     // Fix file watching in development
@@ -31,6 +35,50 @@ const nextConfig = {
     }
     
     return config
+  },
+  // Headers for better SEO and security
+  async headers() {
+    return [
+      {
+        source: '/(.*)',
+        headers: [
+          {
+            key: 'X-Content-Type-Options',
+            value: 'nosniff',
+          },
+          {
+            key: 'X-Frame-Options',
+            value: 'DENY',
+          },
+          {
+            key: 'X-XSS-Protection',
+            value: '1; mode=block',
+          },
+          {
+            key: 'Referrer-Policy',
+            value: 'origin-when-cross-origin',
+          },
+        ],
+      },
+      {
+        source: '/sitemap.xml',
+        headers: [
+          {
+            key: 'Content-Type',
+            value: 'application/xml',
+          },
+        ],
+      },
+      {
+        source: '/robots.txt',
+        headers: [
+          {
+            key: 'Content-Type',
+            value: 'text/plain',
+          },
+        ],
+      },
+    ]
   },
 }
 

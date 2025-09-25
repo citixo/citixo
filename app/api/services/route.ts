@@ -73,6 +73,7 @@ export async function GET(request: NextRequest) {
       href: `/services/${service.seo?.slug || service.serviceId}`,
       status: service.status,
       features: service.features,
+      includedServices: service.includedServices || [],
       createdAt: service.createdAt
     }))
 
@@ -188,7 +189,6 @@ export async function POST(request: NextRequest) {
         error: "Invalid category"
       }, { status: 400 })
     }
-
     // Generate unique ID and slug
     const serviceId = `SRV${Date.now().toString().slice(-6)}`
     const slug = body.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
@@ -206,6 +206,7 @@ export async function POST(request: NextRequest) {
         unit: 'minutes'
       },
       features: body.features || [],
+      includedServices: body.includedServices || [],
       images: serviceImages,
       status: body.status || "Active",
       availability: body.availability || "Available",
@@ -234,6 +235,7 @@ export async function POST(request: NextRequest) {
       href: `/services/${newService.seo.slug}`,
       status: newService.status,
       features: newService.features,
+      includedServices: newService.includedServices || [],
       createdAt: newService.createdAt
     }
 
@@ -325,6 +327,7 @@ export async function PUT(request: NextRequest) {
       href: `/services/${service.seo?.slug || service.serviceId}`,
       status: service.status,
       features: service.features,
+      includedServices: service.includedServices || [],
       createdAt: service.createdAt
     }
 

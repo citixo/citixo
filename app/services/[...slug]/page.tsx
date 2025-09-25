@@ -21,6 +21,7 @@ interface Service {
   bookings: number
   createdAt: string
   features?: string[]
+  includedServices?: string[]
 }
 
 interface Review {
@@ -395,7 +396,7 @@ export default function DynamicServicePage() {
             <div className="mb-8">
               <h2 className="text-2xl font-bold text-black mb-6">What's Included</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {(service.features || defaultFeatures).map((item, index) => (
+                {(service?.includedServices || []).map((item:string, index:number) => (
                   <div key={index} className="flex items-center space-x-3">
                     <CheckCircle className="w-5 h-5 text-green-400" />
                     <span className="text-gray-900">{item}</span>

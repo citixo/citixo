@@ -18,6 +18,7 @@ export default function ServicesPage() {
   const [editingService, setEditingService] = useState<any | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [serviceImages, setServiceImages] = useState<any>()  
+  const [includedServices, setIncludedServices] = useState<string[]>([])
 
   const [categories, setCategories] = useState<string[]>(["All"])
 
@@ -58,12 +59,18 @@ export default function ServicesPage() {
     fetchServices()
   }, [])
 
-  // Reset or populate images when editing state changes
+  // Reset or populate images and included services when editing state changes
   useEffect(() => {
     if (editingService && editingService.images) {
       setServiceImages(editingService.images)
     } else {
       setServiceImages(null)
+    }
+    
+    if (editingService && editingService.includedServices) {
+      setIncludedServices(editingService.includedServices)
+    } else {
+      setIncludedServices([])
     }
   }, [editingService])
 
@@ -173,7 +180,8 @@ export default function ServicesPage() {
       status: formData.get("status") as string,
       href: formData.get("href") as string,
       images: serviceImages, // Convert to URL array for backward compatibility
-      imageData: serviceImages // Store full image data
+      imageData: serviceImages, // Store full image data
+      includedServices: includedServices
     }
 
     try {
@@ -196,6 +204,7 @@ export default function ServicesPage() {
         setShowAddModal(false)
         setEditingService(null)
         setServiceImages(null) // Reset images
+        setIncludedServices([]) // Reset included services
       } else {
         toast.error("Failed to save service: " + result.error)
       }
@@ -412,6 +421,51 @@ export default function ServicesPage() {
                   placeholder="Enter service description"
                 />
               </div>
+              
+              {/* Included Services Section */}
+              <div>
+                <label className="block text-gray-900 text-sm font-medium mb-2">Included Services</label>
+                <div className="space-y-3">
+                  {includedServices.map((service, index) => (
+                    <div key={index} className="flex items-center space-x-2">
+                      <div className="w-5 h-5 bg-green-500 rounded-full flex items-center justify-center">
+                        <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                        </svg>
+                      </div>
+                      <input
+                        type="text"
+                        value={service}
+                        onChange={(e) => {
+                          const newServices = [...includedServices]
+                          newServices[index] = e.target.value
+                          setIncludedServices(newServices)
+                        }}
+                        className="flex-1 bg-white border border-[#2D3748] rounded-lg px-3 py-2 text-black focus:outline-none focus:border-[#0095FF]"
+                        placeholder="Enter included service"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const newServices = includedServices.filter((_, i) => i !== index)
+                          setIncludedServices(newServices)
+                        }}
+                        className="text-red-500 hover:text-red-700 transition-colors"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setIncludedServices([...includedServices, ""])}
+                    className="flex items-center space-x-2 text-[#0095FF] hover:text-[#0080E6] transition-colors"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Add Included Service</span>
+                  </button>
+                </div>
+              </div>
               <div>
                 <label className="block text-gray-900 text-sm font-medium mb-2">Service URL</label>
                 <input
@@ -448,6 +502,7 @@ export default function ServicesPage() {
                     setShowAddModal(false)
                     setEditingService(null)
                     setServiceImages([])
+                    setIncludedServices([])
                   }}
                   className="px-4 py-2 text-gray-400 hover:text-black transition-colors"
                 >

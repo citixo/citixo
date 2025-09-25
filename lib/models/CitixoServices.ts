@@ -43,6 +43,10 @@ const CitixoServicesSchema = new mongoose.Schema({
   features: [{
     type: String
   }],
+  includedServices: [{
+    type: String,
+    required: false
+  }],
   images: {
     publicId: { type: String, required: true },
     url: { type: String, required: true },

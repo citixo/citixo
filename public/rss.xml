@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+    <channel>
+        <title>Citixo Services - Professional Home Services</title>
+        <description>India's #1 trusted home service provider. Professional cleaning, AC service, plumbing, electrical work, painting & maintenance.</description>
+        <link>https://www.citixoservices.com</link>
+        <language>en-us</language>
+        <copyright>Copyright 2024 Citixo Services</copyright>
+        <managingEditor>info@citixoservices.com (Citixo Services)</managingEditor>
+        <webMaster>info@citixoservices.com (Citixo Services)</webMaster>
+        <lastBuildDate>2024-01-01T00:00:00+00:00</lastBuildDate>
+        <atom:link href="https://www.citixoservices.com/rss.xml" rel="self" type="application/rss+xml"/>
+        <image>
+            <url>https://www.citixoservices.com/images/logo.jpeg</url>
+            <title>Citixo Services</title>
+            <link>https://www.citixoservices.com</link>
+            <width>144</width>
+            <height>144</height>
+        </image>
+        
+        <item>
+            <title>Professional Home Cleaning Services</title>
+            <description>Get professional home cleaning services with Citixo Services. Deep cleaning, regular cleaning, and specialized cleaning services available.</description>
+            <link>https://www.citixoservices.com/services/cleaning-services</link>
+            <guid isPermaLink="true">https://www.citixoservices.com/services/cleaning-services</guid>
+            <pubDate>2024-01-01T00:00:00+00:00</pubDate>
+        </item>
+        
+        <item>
+            <title>AC Service & Repair</title>
+            <description>Professional AC installation, repair, and maintenance services. Keep your AC running efficiently with our expert technicians.</description>
+            <link>https://www.citixoservices.com/services/ac-service</link>
+            <guid isPermaLink="true">https://www.citixoservices.com/services/ac-service</guid>
+            <pubDate>2024-01-01T00:00:00+00:00</pubDate>
+        </item>
+        
+        <item>
+            <title>Plumbing Services</title>
+            <description>Expert plumbing services for all your home plumbing needs. From repairs to installations, we've got you covered.</description>
+            <link>https://www.citixoservices.com/services/plumbing-services</link>
+            <guid isPermaLink="true">https://www.citixoservices.com/services/plumbing-services</guid>
+            <pubDate>2024-01-01T00:00:00+00:00</pubDate>
+        </item>
+        
+        <item>
+            <title>Electrical Work</title>
+            <description>Professional electrical services and repairs. Safe and reliable electrical work for your home.</description>
+            <link>https://www.citixoservices.com/services/electrical-work</link>
+            <guid isPermaLink="true">https://www.citixoservices.com/services/electrical-work</guid>
+            <pubDate>2024-01-01T00:00:00+00:00</pubDate>
+        </item>
+        
+        <item>
+            <title>Painting Services</title>
+            <description>Interior and exterior painting services. Transform your home with our professional painting services.</description>
+            <link>https://www.citixoservices.com/services/painting-services</link>
+            <guid isPermaLink="true">https://www.citixoservices.com/services/painting-services</guid>
+            <pubDate>2024-01-01T00:00:00+00:00</pubDate>
+        </item>
+    </channel>
+</rss>

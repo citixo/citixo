@@ -1,0 +1,30 @@
+User-agent: *
+Allow: /
+
+# Sitemaps
+Sitemap: https://www.citixoservices.com/sitemap.xml
+
+# Crawl-delay for better server performance
+Crawl-delay: 1
+
+# Disallow admin and private areas
+Disallow: /admin/
+Disallow: /api/
+Disallow: /_next/
+Disallow: /test-payment/
+
+# Allow important pages
+Allow: /services/
+Allow: /plans/
+Allow: /help/
+Allow: /how-it-works/
+Allow: /book/
+Allow: /orders/
+
+# Block common bot traps
+Disallow: /*?*
+Disallow: /*&*
+Disallow: /*#
+
+# Allow all other content
+Allow: /

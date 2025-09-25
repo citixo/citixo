@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<OpenSearchDescription xmlns="http://a9.com/-/spec/opensearch/1.1/">
+    <ShortName>Citixo Services</ShortName>
+    <Description>Search Citixo Services - Professional Home Services</Description>
+    <InputEncoding>UTF-8</InputEncoding>
+    <Image width="16" height="16" type="image/jpeg">https://www.citixoservices.com/images/logo.jpeg</Image>
+    <Url type="text/html" method="get" template="https://www.citixoservices.com/services?q={searchTerms}"/>
+    <Url type="application/rss+xml" method="get" template="https://www.citixoservices.com/rss.xml?q={searchTerms}"/>
+    <Developer>Citixo Services</Developer>
+    <Attribution>Copyright 2024 Citixo Services</Attribution>
+    <SyndicationRight>open</SyndicationRight>
+    <AdultContent>false</AdultContent>
+    <Language>en-us</Language>
+    <OutputEncoding>UTF-8</OutputEncoding>
+</OpenSearchDescription>
