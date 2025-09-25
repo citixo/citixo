@@ -235,10 +235,10 @@ export default function HomePage() {
             <div className="w-full lg:w-[40%] border border-gray-200 rounded-2xl p-4">
               <div className="mb-8">
                 <h1 className="text-4xl md:text-4xl font-black text-gray-900 mb-4">
-                Home services at your doorstep
+                Citixo Services - Professional Home Services at Your Doorstep
               </h1>
                 <h2 className="text-lg text-gray-600 mb-8">
-                  What are you looking for?
+                  Trusted Citox Services for Cleaning, Repairs & Maintenance - What are you looking for?
                 </h2>
               </div>
 
@@ -570,7 +570,7 @@ export default function HomePage() {
       <section className="py-16 bg-white">
         <div className="container mx-auto px-4">
           <h2 className="section-title text-center mb-12">
-            Why Choose Citixo?
+            Why Choose Citixo Services? - #1 Citox Services Provider
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
             {[
@@ -614,15 +614,58 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* SEO Content Section */}
+      <section className="py-16 bg-gray-50">
+        <div className="container mx-auto px-4">
+          <div className="max-w-4xl mx-auto">
+            <h2 className="text-3xl md:text-4xl font-bold text-center mb-8 text-gray-900">
+              Citixo Services - Your Trusted Home Service Partner
+            </h2>
+            <div className="prose prose-lg max-w-none text-gray-700">
+              <p className="text-lg leading-relaxed mb-6">
+                <strong>Citixo Services</strong> (also known as <strong>Citox Services</strong>) is India's leading home services platform, 
+                providing professional cleaning, repairs, maintenance, and all domestic services right at your doorstep. 
+                Our verified professionals ensure quality service delivery with 100% satisfaction guarantee.
+              </p>
+              
+              <h3 className="text-2xl font-semibold mb-4 text-gray-900">Why Choose Citixo Services?</h3>
+              <ul className="list-disc pl-6 mb-6 space-y-2">
+                <li><strong>Professional Cleaning Services:</strong> Deep cleaning, regular housekeeping, and specialized cleaning solutions</li>
+                <li><strong>AC Service & Repair:</strong> Expert AC maintenance, repair, and installation services</li>
+                <li><strong>Plumbing Services:</strong> Complete plumbing solutions including repairs, installations, and maintenance</li>
+                <li><strong>Electrical Work:</strong> Safe and reliable electrical repairs and installations</li>
+                <li><strong>Painting Services:</strong> Interior and exterior painting with premium quality materials</li>
+                <li><strong>Appliance Repair:</strong> Expert repair services for all home appliances</li>
+              </ul>
+
+              <p className="text-lg leading-relaxed mb-6">
+                With thousands of satisfied customers across India, <strong>Citixo Services</strong> has established itself as the 
+                most trusted name in home services. Our background-verified professionals, on-time service delivery, 
+                and 24/7 customer support make us the preferred choice for all your home service needs.
+              </p>
+
+              <div className="bg-blue-50 p-6 rounded-lg">
+                <h4 className="text-xl font-semibold mb-3 text-blue-900">Book Your Service Today</h4>
+                <p className="text-blue-800">
+                  Experience the convenience of professional home services with <strong>Citixo Services</strong>. 
+                  Book online in just a few clicks and get your home serviced by verified professionals. 
+                  Available 24/7 across major cities in India.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* CTA Section */}
       <section className="py-16">
         <div className="container mx-auto px-4">
           <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-2xl p-8 md:p-12 text-center text-white">
             <h2 className="text-3xl md:text-4xl font-bold mb-4">
-              Ready to book your service?
+              Ready to book your Citixo service?
             </h2>
             <p className="text-xl mb-8 opacity-90">
-              Get started with professional home services today
+              Get started with professional Citox services today - Trusted by thousands of customers
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Link
