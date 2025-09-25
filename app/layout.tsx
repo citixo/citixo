@@ -4,6 +4,7 @@ import { Inter } from "next/font/google"
 import "./globals.css"
 import Header from "@/components/header"
 import Footer from "@/components/footer"
+import PWAInstallButton from "@/components/PWAInstallButton"
 import { ToastContainer } from "react-toastify"
 import "react-toastify/dist/ReactToastify.css"
 
@@ -710,12 +711,30 @@ export default function RootLayout({
         <meta property="business:hours:day" content="sunday" />
         <meta property="business:hours:start" content="06:00" />
         <meta property="business:hours:end" content="22:00" />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              if ('serviceWorker' in navigator) {
+                window.addEventListener('load', function() {
+                  navigator.serviceWorker.register('/sw.js')
+                    .then(function(registration) {
+                      console.log('SW registered: ', registration);
+                    })
+                    .catch(function(registrationError) {
+                      console.log('SW registration failed: ', registrationError);
+                    });
+                });
+              }
+            `,
+          }}
+        />
       </head>
      <body suppressHydrationWarning className="min-h-screen bg-white md:px-[7rem] lg:px-[7rem] text-gray-900">
 
         <Header />
         <main>{children}</main>
         <Footer />
+        <PWAInstallButton />
         <ToastContainer
           position="top-right"
           autoClose={3000}

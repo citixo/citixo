@@ -88,6 +88,32 @@ export default function Footer() {
 
     
           {/* Download App */}
+          <div>
+            <h3 className="text-lg font-semibold mb-4">Download App</h3>
+            <p className="text-gray-900 mb-4">
+              Install our app for faster booking and better experience
+            </p>
+            <div className="space-y-3">
+              <button
+                onClick={() => {
+                  // This will be handled by the PWA install button
+                  if ('serviceWorker' in navigator) {
+                    navigator.serviceWorker.ready.then(() => {
+                      // Trigger install prompt if available
+                      window.dispatchEvent(new Event('beforeinstallprompt'))
+                    })
+                  }
+                }}
+                className="w-full bg-[#0095FF] hover:bg-[#0080E6] text-white px-4 py-2 rounded-lg font-medium flex items-center justify-center space-x-2 transition-colors"
+              >
+                <Download className="w-5 h-5" />
+                <span>Install App</span>
+              </button>
+              <p className="text-xs text-gray-600 text-center">
+                Available on all devices
+              </p>
+            </div>
+          </div>
         
         </div>
 

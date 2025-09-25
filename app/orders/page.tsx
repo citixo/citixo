@@ -195,33 +195,33 @@ export default function OrdersPage() {
 
   return (
     <div className="min-h-screen bg-slate-100 text-black py-8">
-      <div className="container mx-auto px-4 max-w-6xl">
+      <div className="container mx-auto px-4 max-w-6xl overflow-hidden">
         {/* Header */}
         <div className="mb-8">
-          <div className="flex items-center space-x-4 mb-4">
+          <div className="flex items-center space-x-4 mb-6">
             <button
               onClick={() => router.back()}
-              className="flex items-center space-x-2 text-gray-700 hover:text-black transition-colors"
+              className="flex items-center space-x-2 text-gray-700 hover:text-black transition-colors group"
             >
-              <ArrowLeft className="w-5 h-5" />
-              <span>Back</span>
+              <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
+              <span className="text-sm md:text-base">Back</span>
             </button>
             <div>
-              <h1 className="text-3xl font-bold">My Bookings</h1>
-              <p className="text-gray-900">Track your service bookings and orders</p>
+              <h1 className="text-3xl md:text-4xl font-bold">My Bookings</h1>
+              <p className="text-gray-900 text-sm md:text-base">Track your service bookings and orders</p>
             </div>
           </div>
 
           {/* Status Filter */}
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2 md:gap-3 overflow-x-auto pb-2">
             {statuses.map((status) => (
               <button
                 key={status}
                 onClick={() => setFilter(status)}
-                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                className={`px-4 py-2 md:px-5 md:py-2.5 rounded-lg font-medium transition-colors whitespace-nowrap text-sm md:text-base ${
                   filter === status
-                    ? "bg-[#0095FF] text-white"
-                    : "bg-[#1A2332] text-gray-300 hover:bg-[#374151]"
+                    ? "bg-[#0095FF] text-white shadow-lg"
+                    : "bg-[#1A2332] text-gray-300 hover:bg-[#374151] hover:text-white"
                 }`}
               >
                 {status}
@@ -256,80 +256,88 @@ export default function OrdersPage() {
         ) : (
           <div className="space-y-4">
             {filteredBookings.map((booking) => (
-              <div key={booking.id} className="bg-slate-50rounded-xl border border-[#2D3748] overflow-hidden hover:border-[#0095FF]/50 transition-colors">
-                <div className="p-6">
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex items-start space-x-4">
+              <div key={booking.id} className="bg-slate-50 rounded-xl border border-[#2D3748] overflow-hidden hover:border-[#0095FF]/50 transition-colors">
+                <div className="p-4 md:p-6">
+                  {/* Responsive layout for all screen sizes */}
+                  <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between mb-4 space-y-4 lg:space-y-0">
+                    <div className="flex items-start space-x-4 flex-1 min-w-0">
                       <img
                         src={booking.service.image || "/placeholder.svg"}
                         alt={booking.service.name}
-                        className="w-16 h-16 rounded-lg object-cover"
+                        className="w-16 h-16 md:w-20 md:h-20 rounded-lg object-cover flex-shrink-0"
                       />
-                      <div className="flex-1">
-                        <h3 className="text-lg font-semibold text-black mb-1">{booking.service.name}</h3>
-                        <p className="text-gray-900 text-sm mb-2">Booking #{booking.bookingNumber}</p>
-                        <div className="flex items-center space-x-4 text-sm text-gray-900">
-                          <div className="flex items-center space-x-1">
-                            <Calendar className="w-4 h-4" />
-                            <span>{new Date(booking.scheduledDate).toLocaleDateString()}</span>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="text-lg md:text-xl font-semibold text-black mb-1 truncate">{booking.service.name}</h3>
+                        <p className="text-gray-900 text-sm md:text-base mb-2">Booking #{booking.bookingNumber}</p>
+                        <div className="flex flex-col md:flex-row md:items-center md:space-x-6 space-y-2 md:space-y-0 text-sm md:text-base text-gray-900">
+                          <div className="flex items-center space-x-2">
+                            <Calendar className="w-4 h-4 flex-shrink-0" />
+                            <span className="truncate">{new Date(booking.scheduledDate).toLocaleDateString()}</span>
                           </div>
-                          <div className="flex items-center space-x-1">
-                            <Clock className="w-4 h-4" />
-                            <span>{booking.scheduledTime}</span>
+                          <div className="flex items-center space-x-2">
+                            <Clock className="w-4 h-4 flex-shrink-0" />
+                            <span className="truncate">{booking.scheduledTime}</span>
                           </div>
-                          <div className="flex items-center space-x-1">
-                            <User className="w-4 h-4" />
-                            <span>{booking.professional?.name || "To be assigned"}</span>
+                          <div className="flex items-center space-x-2">
+                            <User className="w-4 h-4 flex-shrink-0" />
+                            <span className="truncate">{booking.professional?.name || "To be assigned"}</span>
                           </div>
                         </div>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <div className={`inline-flex items-center space-x-2 px-3 py-1 rounded-lg border text-sm font-medium ${getStatusColor(booking.status)}`}>
+                    <div className="flex flex-col md:flex-row md:items-end md:justify-end space-y-2 md:space-y-0 md:space-x-4 lg:space-x-6">
+                      <div className={`inline-flex items-center space-x-2 px-3 py-1 md:px-4 md:py-2 rounded-lg border text-sm md:text-base font-medium w-fit ${getStatusColor(booking.status)}`}>
                         {getStatusIcon(booking.status)}
-                        <span>{booking.status}</span>
+                        <span className="whitespace-nowrap">{booking.status}</span>
                       </div>
-                      <p className="text-lg font-semibold text-black mt-2">₹{booking.amount}</p>
+                      <p className="text-lg md:text-xl font-semibold text-black">₹{booking.amount}</p>
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between pt-4 border-t border-[#2D3748]">
-                    <div className="flex items-center space-x-4 text-sm text-gray-900">
-                      <div className="flex items-center space-x-1">
-                        <MapPin className="w-4 h-4" />
-                        <span className="truncate max-w-[200px]">{booking.customer.address}</span>
-                      </div>
-                      <span>•</span>
-                      <span>Qty: {booking.quantity}</span>
-                    </div>
-                    
-                    <div className="flex items-center space-x-3">
-                      {booking.status === 'Completed' && booking.hasReview && (
-                        <div className="flex items-center space-x-1 text-yellow-400">
-                          <Star className="w-4 h-4 fill-current" />
-                          <span className="text-sm">Reviewed</span>
+                  {/* Bottom section with address and actions */}
+                  <div className="pt-4 border-t border-[#2D3748]">
+                    <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-4 lg:space-y-0">
+                      <div className="flex flex-col md:flex-row md:items-center space-y-2 md:space-y-0 md:space-x-6 text-sm md:text-base text-gray-900">
+                        <div className="flex items-start space-x-2 min-w-0">
+                          <MapPin className="w-4 h-4 md:w-5 md:h-5 flex-shrink-0 mt-0.5" />
+                          <span className="truncate">{booking.customer.address}</span>
                         </div>
-                      )}
+                        <div className="flex items-center space-x-2">
+                          <span>•</span>
+                          <span>Qty: {booking.quantity}</span>
+                        </div>
+                      </div>
                       
-                      {/* Cancel button - only show for Pending and Confirmed bookings */}
-                      {(booking.status === 'Pending' || booking.status === 'Accepted') && (
-                        <button
-                          onClick={() => handleCancelOrder(booking.id)}
-                          disabled={cancellingId === booking.id}
-                          className="flex items-center space-x-2 bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-black px-4 py-2 rounded-lg transition-colors"
-                        >
-                          <X className="w-4 h-4" />
-                          <span>{cancellingId === booking.id ? 'Cancelling...' : 'Cancel'}</span>
-                        </button>
-                      )}
-                      
-                      <button
-                        onClick={() => router.push(`/orders/${booking.id}`)}
-                        className="flex items-center space-x-2 bg-[#0095FF] hover:bg-[#0080E6] text-black px-4 py-2 rounded-lg transition-colors"
-                      >
-                        <Eye className="w-4 h-4" />
-                        <span>View Details</span>
-                      </button>
+                      <div className="flex flex-col md:flex-row items-stretch md:items-center space-y-2 md:space-y-0 md:space-x-4">
+                        {booking.status === 'Completed' && booking.hasReview && (
+                          <div className="flex items-center space-x-2 text-yellow-400 justify-center md:justify-start">
+                            <Star className="w-4 h-4 fill-current" />
+                            <span className="text-sm md:text-base">Reviewed</span>
+                          </div>
+                        )}
+                        
+                        <div className="flex flex-col md:flex-row space-y-2 md:space-y-0 md:space-x-3">
+                          {/* Cancel button - only show for Pending and Confirmed bookings */}
+                          {(booking.status === 'Pending' || booking.status === 'Accepted') && (
+                            <button
+                              onClick={() => handleCancelOrder(booking.id)}
+                              disabled={cancellingId === booking.id}
+                              className="flex items-center justify-center space-x-2 bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2 md:px-5 md:py-2.5 rounded-lg transition-colors w-full md:w-auto text-sm md:text-base"
+                            >
+                              <X className="w-4 h-4" />
+                              <span className="whitespace-nowrap">{cancellingId === booking.id ? 'Cancelling...' : 'Cancel'}</span>
+                            </button>
+                          )}
+                          
+                          <button
+                            onClick={() => router.push(`/orders/${booking.id}`)}
+                            className="flex items-center justify-center space-x-2 bg-[#0095FF] hover:bg-[#0080E6] text-white px-4 py-2 md:px-5 md:py-2.5 rounded-lg transition-colors w-full md:w-auto text-sm md:text-base"
+                          >
+                            <Eye className="w-4 h-4" />
+                            <span className="whitespace-nowrap">View Details</span>
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -339,45 +347,45 @@ export default function OrdersPage() {
         )}
 
         {/* Quick Actions */}
-        <div className="mt-12 bg-slate-50 rounded-xl p-6 border border-[#2D3748]">
-          <h3 className="text-xl font-bold mb-6">Quick Actions</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="mt-12 bg-slate-50 rounded-xl p-6 md:p-8 border border-[#2D3748]">
+          <h3 className="text-xl md:text-2xl font-bold mb-6 md:mb-8">Quick Actions</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
             <Link
               href="/services"
-              className="flex items-center space-x-3 p-4 bg-slate-50 rounded-lg hover:bg-[#2D3748] transition-colors"
+              className="flex items-center space-x-4 p-4 md:p-6 bg-white rounded-lg hover:bg-[#0095FF]/5 hover:border-[#0095FF]/20 border border-transparent transition-all duration-200 group"
             >
-              <div className="w-10 h-10 bg-[#0095FF]/20 rounded-lg flex items-center justify-center">
-                <Package className="w-5 h-5 text-[#0095FF]" />
+              <div className="w-12 h-12 md:w-14 md:h-14 bg-[#0095FF]/20 rounded-lg flex items-center justify-center group-hover:bg-[#0095FF]/30 transition-colors">
+                <Package className="w-6 h-6 md:w-7 md:h-7 text-[#0095FF]" />
               </div>
               <div>
-                <p className="text-black font-medium">Book New Service</p>
-                <p className="text-gray-900 text-sm">Browse all services</p>
+                <p className="text-black font-medium text-base md:text-lg">Book New Service</p>
+                <p className="text-gray-900 text-sm md:text-base">Browse all services</p>
               </div>
             </Link>
 
             <Link
               href="/plans"
-              className="flex items-center space-x-3 p-4 bg-slate-50 rounded-lg hover:bg-[#2D3748] transition-colors"
+              className="flex items-center space-x-4 p-4 md:p-6 bg-white rounded-lg hover:bg-[#0095FF]/5 hover:border-[#0095FF]/20 border border-transparent transition-all duration-200 group"
             >
-              <div className="w-10 h-10 bg-[#0095FF]/20 rounded-lg flex items-center justify-center">
-                <Calendar className="w-5 h-5 text-[#0095FF]" />
+              <div className="w-12 h-12 md:w-14 md:h-14 bg-[#0095FF]/20 rounded-lg flex items-center justify-center group-hover:bg-[#0095FF]/30 transition-colors">
+                <Calendar className="w-6 h-6 md:w-7 md:h-7 text-[#0095FF]" />
               </div>
               <div>
-                <p className="text-black font-medium">View Plans</p>
-                <p className="text-gray-900 text-sm">Subscription options</p>
+                <p className="text-black font-medium text-base md:text-lg">View Plans</p>
+                <p className="text-gray-900 text-sm md:text-base">Subscription options</p>
               </div>
             </Link>
 
             <Link
               href="/help"
-              className="flex items-center space-x-3 p-4 bg-slate-50 rounded-lg hover:bg-[#2D3748] transition-colors"
+              className="flex items-center space-x-4 p-4 md:p-6 bg-white rounded-lg hover:bg-[#0095FF]/5 hover:border-[#0095FF]/20 border border-transparent transition-all duration-200 group"
             >
-              <div className="w-10 h-10 bg-[#0095FF]/20 rounded-lg flex items-center justify-center">
-                <Phone className="w-5 h-5 text-[#0095FF]" />
+              <div className="w-12 h-12 md:w-14 md:h-14 bg-[#0095FF]/20 rounded-lg flex items-center justify-center group-hover:bg-[#0095FF]/30 transition-colors">
+                <Phone className="w-6 h-6 md:w-7 md:h-7 text-[#0095FF]" />
               </div>
               <div>
-                <p className="text-black font-medium">Get Help</p>
-                <p className="text-gray-900 text-sm">Support & FAQs</p>
+                <p className="text-black font-medium text-base md:text-lg">Get Help</p>
+                <p className="text-gray-900 text-sm md:text-base">Support & FAQs</p>
               </div>
             </Link>
           </div>
