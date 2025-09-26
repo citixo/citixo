@@ -7,12 +7,20 @@ const nextConfig = {
     ignoreBuildErrors: true,
   },
   images: {
-    domains: ['localhost', 'res.cloudinary.com'],
+    domains: ['localhost', 'res.cloudinary.com', 'www.citixoservices.com'],
     formats: ['image/webp', 'image/avif'],
     unoptimized: false,
+    minimumCacheTTL: 60,
+    dangerouslyAllowSVG: true,
+    contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
   },
   experimental: {
-    // Removed optimizeCss to fix critters module issue
+    // Enable server components
+    serverComponentsExternalPackages: ['mongoose'],
+    // Optimize for SSR
+    optimizeCss: true,
+    // Enable static optimization
+    staticPageGenerationTimeout: 1000,
   },
   compiler: {
     removeConsole: process.env.NODE_ENV === 'production',
@@ -23,6 +31,12 @@ const nextConfig = {
   trailingSlash: false,
   generateEtags: true,
   compress: true,
+  // Enable static generation for better SEO
+  output: 'standalone',
+  // Optimize for search engines
+  generateBuildId: async () => {
+    return 'citixo-services-build'
+  },
   // Simplified webpack configuration to fix chunk loading issues
   webpack: (config, { dev }) => {
     // Fix file watching in development

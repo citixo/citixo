@@ -1,5 +1,3 @@
-"use client";
-
 import Link from "next/link";
 import Image from "next/image";
 import {
@@ -14,8 +12,10 @@ import {
   X,
   ChevronUp,
 } from "lucide-react";
-import { useState, useEffect } from "react";
-import ServicesShowcase from "@/components/services-showcase";
+import { Metadata } from "next";
+import connectDB from "@/lib/mongodb";
+import { CitixoServices, CitixoServiceCategories } from "@/lib/models";
+import HomeInteractive from "@/components/home-interactive";
 
 interface Service {
   id: string;
@@ -46,80 +46,57 @@ interface CategoryService {
   href: string;
 }
 
-export default function HomePage() {
-  const [currentBanner, setCurrentBanner] = useState(0);
-  const [homeData, setHomeData] = useState<HomePageData>({
-    featuredServices: [],
-    newServices: [],
-    mostBookedServices: [],
-    categories: [],
-  });
-  const [loading, setLoading] = useState(true);
-  const [selectedCategory, setSelectedCategory] = useState<any>(null);
-  const [categoryServices, setCategoryServices] = useState<CategoryService[]>(
-    []
-  );
-  const [showCategoryPopup, setShowCategoryPopup] = useState(false);
-  const [loadingServices, setLoadingServices] = useState(false);
-  const [marketingServices, setMarketingServices] = useState<Service[]>([]);
+// Server-side data fetching
+async function getHomePageData() {
+  try {
+    await connectDB();
 
-  const banners = [
-    {
-      title: "Deep Clean Special",
-      subtitle: "Professional home cleaning",
-      discount: "30% OFF",
-      color: "from-blue-600 to-blue-800",
-      icon: Sparkles,
-    },
-    {
-      title: "AC Service Season",
-      subtitle: "Beat the heat with expert care",
-      discount: "25% OFF",
-      color: "from-green-600 to-green-800",
-      icon: Zap,
-    },
-    {
-      title: "Home Painting",
-      subtitle: "Transform your space",
-      discount: "₹12/sq ft",
-      color: "from-orange-600 to-orange-800",
-      icon: Home,
-    },
-  ];
+    // Fetch services and categories in parallel
+    const [services, categories] = await Promise.all([
+      CitixoServices.find({ status: "Active" })
+        .sort({ bookingCount: -1, 'rating.average': -1 })
+        .limit(50),
+      CitixoServiceCategories.find({ status: "Active" })
+        .sort({ displayOrder: 1, createdAt: -1 })
+    ]);
 
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentBanner((prev) => (prev + 1) % banners.length);
-    }, 4000);
-    return () => clearInterval(timer);
-  }, [banners.length]);
+    // Create category map
+    const categoryMap = categories.reduce((map, cat) => {
+      map[cat.categoryId] = cat.name;
+      return map;
+    }, {} as Record<string, string>);
 
-  useEffect(() => {
-    const fetchHomeData = async () => {
-      try {
-        setLoading(true);
-        const response = await fetch("/api/services");
-        const data = await response.json();
-
-        if (data.success && data.data) {
-          const activeServices = data.data.filter(
-            (service: Service) => service.status === "Active"
-          );
+    // Transform services data
+    const transformedServices = services.map((service: any) => ({
+      id: service.serviceId,
+      name: service.name,
+      description: service.description,
+      category: categoryMap[service.categoryId] || 'Uncategorized',
+      price: service.formattedPrice,
+      rating: service.rating.average,
+      reviews: service.rating.count,
+      bookings: service.bookingCount,
+      image: service.images ? service.images.url : "/placeholder.svg?height=200&width=300",
+      images: service.images || {},
+      href: `/services/${service.seo?.slug || service.serviceId}`,
+      status: service.status,
+      features: service.features,
+      includedServices: service.includedServices || [],
+      createdAt: service.createdAt
+    }));
 
           // Get unique categories
-          const categories = [
-            ...new Set(
-              activeServices.map((service: Service) => service.category)
-            ),
+    const uniqueCategories = [
+      ...new Set(transformedServices.map((service: Service) => service.category))
           ] as string[];
 
           // Sort services by bookings for most booked
-          const mostBookedServices = [...activeServices]
+    const mostBookedServices = [...transformedServices]
             .sort((a, b) => b.bookings - a.bookings)
             .slice(0, 4);
 
           // Sort by creation date for new services (most recent first)
-          const newServices = [...activeServices]
+    const newServices = [...transformedServices]
             .sort(
               (a, b) =>
                 new Date(b.createdAt).getTime() -
@@ -128,100 +105,128 @@ export default function HomePage() {
             .slice(0, 5);
 
           // Featured services (high rating and good bookings)
-          const featuredServices = [...activeServices]
+    const featuredServices = [...transformedServices]
             .filter(
               (service) => service.rating >= 4.7 && service.bookings >= 500
             )
             .slice(0, 6);
 
-          setHomeData({
+    // Marketing services (first 4 services)
+    const marketingServices = transformedServices.slice(0, 4);
+
+    return {
             featuredServices,
             newServices,
             mostBookedServices,
-            categories,
-          });
-        }
-      } catch (error) {
-        console.error("Error fetching home data:", error);
-      } finally {
-        setLoading(false);
-      }
+      marketingServices,
+      categories: categories.map(cat => ({
+        id: cat.categoryId,
+        name: cat.name,
+        description: cat.description,
+        icon: cat.icon,
+        color: cat.color
+      })),
+      uniqueCategories
     };
+  } catch (error) {
+    console.error("Error fetching home page data:", error);
+    return {
+      featuredServices: [],
+      newServices: [],
+      mostBookedServices: [],
+      marketingServices: [],
+      categories: [],
+      uniqueCategories: []
+    };
+  }
+}
 
-    fetchHomeData();
-  }, []);
+// Metadata for SEO
+export const metadata: Metadata = {
+  title: "Citixo Services - Professional Home Services | #1 Home Service Provider",
+  description: "India's #1 trusted home service provider. Professional cleaning, AC service, plumbing, electrical work, painting & maintenance. Book online with verified professionals. 100% satisfaction guaranteed!",
+  keywords: [
+    "citixo services",
+    "citox services", 
+    "home services",
+    "cleaning services",
+    "home repairs",
+    "maintenance services",
+    "professional cleaners",
+    "home improvement",
+    "domestic services",
+    "house cleaning",
+    "AC service",
+    "plumbing",
+    "electrical work",
+    "painting services",
+    "carpentry",
+    "appliance repair",
+    "deep cleaning",
+    "regular cleaning",
+    "office cleaning",
+    "carpet cleaning",
+    "window cleaning",
+    "kitchen cleaning",
+    "bathroom cleaning",
+    "home maintenance",
+    "citixo services near me",
+    "citox services booking",
+    "professional home services",
+    "trusted home service provider",
+    "verified professionals",
+    "home service booking",
+    "domestic help",
+    "house maintenance",
+    "home renovation",
+    "interior cleaning",
+    "exterior cleaning",
+    "move in cleaning",
+    "move out cleaning",
+    "post construction cleaning",
+    "commercial cleaning",
+    "residential cleaning"
+  ],
+  openGraph: {
+    title: "Citixo Services - Professional Home Services | #1 Home Service Provider",
+    description: "India's #1 trusted home service provider. Professional cleaning, AC service, plumbing, electrical work, painting & maintenance. Book online with verified professionals. 100% satisfaction guaranteed!",
+    url: 'https://www.citixoservices.com',
+    siteName: 'Citixo Services',
+    images: [
+      {
+        url: 'https://www.citixoservices.com/images/logo.jpeg',
+        width: 1200,
+        height: 630,
+        alt: 'Citixo Services - Professional Home Services Logo',
+        type: 'image/jpeg',
+      },
+    ],
+    locale: 'en_US',
+    type: 'website',
+    countryName: 'India',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: "Citixo Services - Professional Home Services | #1 Home Service Provider",
+    description: "India's #1 trusted home service provider. Professional cleaning, AC service, plumbing, electrical work, painting & maintenance. Book online with verified professionals.",
+    images: ['https://www.citixoservices.com/images/logo.jpeg'],
+    creator: '@citixoservices',
+    site: '@citixoservices',
+  },
+  alternates: {
+    canonical: '/',
+  },
+};
 
-  const CurrentIcon = banners[currentBanner].icon;
+export default async function HomePage() {
+  // Fetch data server-side
+  const homeData = await getHomePageData();
 
   const formatReviews = (bookings: number) => {
     if (bookings >= 1000) {
       return `${(bookings / 1000).toFixed(1)}k`;
     }
     return bookings.toString();
-  };
-
-  const [categarories, setCategarories] = useState<any[]>([]);
-
-  useEffect(() => {
-    const fetchCategarories = async () => {
-      const response = await fetch("/api/categories");
-      const data = await response.json();
-      setCategarories(data.data);
-    };
-    fetchCategarories();
-  }, []);
-
-  // Fetch first 4 services for marketing images
-  useEffect(() => {
-    const fetchMarketingServices = async () => {
-      try {
-        const response = await fetch("/api/services?limit=4");
-        const data = await response.json();
-        console.log("Marketing services data:", data); // Debug log
-        if (data.success && data.data) {
-          setMarketingServices(data.data.slice(0, 4));
-        }
-      } catch (error) {
-        console.error("Error fetching marketing services:", error);
-      }
-    };
-    fetchMarketingServices();
-  }, []);
-
-  // Handle category click to show services popup
-  const handleCategoryClick = async (category: any) => {
-    setSelectedCategory(category);
-    setLoadingServices(true);
-    setShowCategoryPopup(true);
-
-    try {
-      const response = await fetch(
-        `/api/services?category=${encodeURIComponent(category.name)}`
-      );
-      const data = await response.json();
-
-      if (data.success && data.data) {
-        const services = data.data.map((service: Service) => ({
-          id: service.id,
-          name: service.name,
-          icon: category.icon,
-          image: service.image,
-          href: service.href || `/services/${service.id}`,
-        }));
-        setCategoryServices(services);
-      }
-    } catch (error) {
-      console.error("Error fetching category services:", error);
-    } finally {
-      setLoadingServices(false);
-    }
-  };
-
-  // Close category popup
-  const closeCategoryPopup = () => {
-    setShowCategoryPopup(false);
-    setSelectedCategory(null);
-    setCategoryServices([]);
   };
 
   return (
@@ -243,74 +248,44 @@ export default function HomePage() {
               </div>
 
               {/* Categories Grid */}
-              <div className="flex gap-4">
-                {categarories.map((category: any, index: number) => (
-                  <button
-                    key={index}
-                    onClick={() => handleCategoryClick(category)}
-                    className="group relative flex flex-col items-center justify-center rounded-2xl p-2
-                               shadow-lg hover:shadow-2xl transform transition-all duration-300 hover:-translate-y-2
-                               bg-white border border-gray-200 hover:border-gray-300"
-                  >
-                    {/* Icon Circle */}
-                    <div
-                      className="relative h-10 flex items-center justify-center rounded-full 
-                                 bg-gray-50 group-hover:bg-gray-100 transition-colors duration-300 mb-4"
-                    >
-                      <span
-                        className="text-xl transition-all duration-300"
-                        style={{ color: category.color || "#0095FF" }}
-                      >
-                        {category.icon}
-                      </span>
-                    </div>
-
-                    {/* Title */}
-                    <h3 className="text-sm font-semibold text-gray-900 text-center group-hover:text-blue-600 transition-colors">
-                      {category.name}
-                    </h3>
-                  </button>
-                ))}
-              </div>
+              <HomeInteractive 
+                categories={homeData.categories} 
+                marketingServices={homeData.marketingServices}
+              />
             </div>
 
             {/* Right Side - Marketing Images */}
             <div className="w-full lg:flex-1 mt-8 lg:mt-0">
-              {marketingServices.length === 0 ? (
+              {homeData.marketingServices.length === 0 ? (
                 <div className="text-center py-8">
-                  <p className="text-gray-500">Loading services...</p>
-                  <p className="text-xs text-gray-400 mt-2">Count: {marketingServices.length}</p>
+                  <p className="text-gray-500">No services available</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* Marketing Images from Services */}
                 <div className="space-y-6">
-                  {marketingServices[0] && (
+                  {homeData.marketingServices[0] && (
                     <Link
                       href={
-                        marketingServices[0].href ||
-                        `/services/${marketingServices[0].id}`
+                        homeData.marketingServices[0].href ||
+                        `/services/${homeData.marketingServices[0].id}`
                       }
                     >
                       <div className="relative h-64 md:h-80 rounded-2xl overflow-hidden group mb-2 shadow-lg hover:shadow-2xl transition-all duration-300">
                         <Image
-                          src={marketingServices[0].image || "/placeholder.jpg"}
-                          alt={marketingServices[0].name}
+                          src={homeData.marketingServices[0].image || "/placeholder.jpg"}
+                          alt={homeData.marketingServices[0].name}
                           fill
                           sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
                           className="object-cover group-hover:scale-110 transition-transform duration-500"
-                          onError={(e) => {
-                            console.error("Image load error:", e);
-                            e.currentTarget.src = "/placeholder.jpg";
-                          }}
                         />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent group-hover:from-black/70 transition-opacity duration-300"></div>
                         <div className="absolute bottom-4 md:bottom-6 left-4 md:left-6 right-4 md:right-6 text-white">
                           <h3 className="font-bold text-lg md:text-xl mb-2 leading-tight">
-                            {marketingServices[0].name}
+                            {homeData.marketingServices[0].name}
                           </h3>
                           <p className="text-xs md:text-sm opacity-90 font-medium">
-                            {marketingServices[0].category}
+                            {homeData.marketingServices[0].category}
                           </p>
                           <div className="mt-3 flex items-center space-x-2">
                             <div className="w-2 h-2 bg-white rounded-full"></div>
@@ -323,32 +298,28 @@ export default function HomePage() {
                     </Link>
                   )}
 
-                  {marketingServices[1] && (
+                  {homeData.marketingServices[1] && (
                     <Link
                       href={
-                        marketingServices[1].href ||
-                        `/services/${marketingServices[1].id}`
+                        homeData.marketingServices[1].href ||
+                        `/services/${homeData.marketingServices[1].id}`
                       }
                     >
                       <div className="relative h-48 md:h-60 rounded-2xl overflow-hidden group shadow-lg hover:shadow-2xl transition-all duration-300">
                         <Image
-                          src={marketingServices[1].image || "/placeholder.jpg"}
-                          alt={marketingServices[1].name}
+                          src={homeData.marketingServices[1].image || "/placeholder.jpg"}
+                          alt={homeData.marketingServices[1].name}
                           fill
                           sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
                           className="object-cover group-hover:scale-110 transition-transform duration-500"
-                          onError={(e) => {
-                            console.error("Image load error:", e);
-                            e.currentTarget.src = "/placeholder.jpg";
-                          }}
                         />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent group-hover:from-black/70 transition-opacity duration-300"></div>
                         <div className="absolute bottom-3 md:bottom-4 left-3 md:left-4 right-3 md:right-4 text-white">
                           <h3 className="font-bold text-base md:text-lg mb-1 leading-tight">
-                            {marketingServices[1].name}
+                            {homeData.marketingServices[1].name}
                           </h3>
                           <p className="text-xs opacity-90 font-medium">
-                            {marketingServices[1].category}
+                            {homeData.marketingServices[1].category}
                           </p>
                         </div>
                       </div>
@@ -357,64 +328,56 @@ export default function HomePage() {
                 </div>
 
                 <div className="space-y-6">
-                  {marketingServices[2] && (
+                  {homeData.marketingServices[2] && (
                     <Link
                       href={
-                        marketingServices[2].href ||
-                        `/services/${marketingServices[2].id}`
+                        homeData.marketingServices[2].href ||
+                        `/services/${homeData.marketingServices[2].id}`
                       }
                     >
                       <div className="relative h-48 md:h-60 rounded-2xl overflow-hidden group shadow-lg hover:shadow-2xl transition-all mb-2 duration-300">
                         <Image
-                          src={marketingServices[2].image || "/placeholder.jpg"}
-                          alt={marketingServices[2].name}
+                          src={homeData.marketingServices[2].image || "/placeholder.jpg"}
+                          alt={homeData.marketingServices[2].name}
                           fill
                           sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
                           className="object-cover group-hover:scale-110 transition-transform duration-500"
-                          onError={(e) => {
-                            console.error("Image load error:", e);
-                            e.currentTarget.src = "/placeholder.jpg";
-                          }}
                         />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent group-hover:from-black/70 transition-opacity duration-300"></div>
                         <div className="absolute bottom-3 md:bottom-4 left-3 md:left-4 right-3 md:right-4 text-white">
                           <h3 className="font-bold text-base md:text-lg mb-1 leading-tight">
-                            {marketingServices[2].name}
+                            {homeData.marketingServices[2].name}
                           </h3>
                           <p className="text-xs opacity-90 font-medium">
-                            {marketingServices[2].category}
+                            {homeData.marketingServices[2].category}
                           </p>
                         </div>
                       </div>
                     </Link>
                   )}
 
-                  {marketingServices[3] && (
+                  {homeData.marketingServices[3] && (
                     <Link
                       href={
-                        marketingServices[3].href ||
-                        `/services/${marketingServices[3].id}`
+                        homeData.marketingServices[3].href ||
+                        `/services/${homeData.marketingServices[3].id}`
                       }
                     >
                       <div className="relative h-64 md:h-80 rounded-2xl overflow-hidden group shadow-lg hover:shadow-2xl transition-all duration-300">
                         <Image
-                          src={marketingServices[3].image || "/placeholder.jpg"}
-                          alt={marketingServices[3].name}
+                          src={homeData.marketingServices[3].image || "/placeholder.jpg"}
+                          alt={homeData.marketingServices[3].name}
                           fill
                           sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
                           className="object-cover group-hover:scale-110 transition-transform duration-500"
-                          onError={(e) => {
-                            console.error("Image load error:", e);
-                            e.currentTarget.src = "/placeholder.jpg";
-                          }}
                         />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent group-hover:from-black/70 transition-opacity duration-300"></div>
                         <div className="absolute bottom-4 md:bottom-6 left-4 md:left-6 right-4 md:right-6 text-white">
                           <h3 className="font-bold text-lg md:text-xl mb-2 leading-tight">
-                            {marketingServices[3].name}
+                            {homeData.marketingServices[3].name}
                           </h3>
                           <p className="text-xs md:text-sm opacity-90 font-medium">
-                            {marketingServices[3].category}
+                            {homeData.marketingServices[3].category}
                           </p>
                           <div className="mt-3 flex items-center space-x-2">
                             <div className="w-2 h-2 bg-white rounded-full"></div>
@@ -451,20 +414,6 @@ export default function HomePage() {
             </Link>
           </div>
 
-          {loading ? (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
-              {[...Array(5)].map((_, index) => (
-                <div
-                  key={index}
-                  className="bg-white rounded-xl p-4 animate-pulse"
-                >
-                  <div className="w-full h-32 bg-gray-200 rounded-lg mb-3"></div>
-                  <div className="h-4 bg-gray-200 rounded mb-2"></div>
-                  <div className="h-3 bg-gray-200 rounded w-2/3"></div>
-                </div>
-              ))}
-            </div>
-          ) : (
             <div className="grid grid-cols-2 md:grid-cols-3 boxshadow-md-gray-200  lg:grid-cols-5 gap-6">
               {homeData.newServices.map((service, index) => (
                 <Link
@@ -486,7 +435,6 @@ export default function HomePage() {
                 </Link>
               ))}
             </div>
-          )}
         </div>
       </section>
 
@@ -503,26 +451,6 @@ export default function HomePage() {
             </Link>
           </div>
 
-          {loading ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {[...Array(4)].map((_, index) => (
-                <div
-                  key={index}
-                  className="bg-white rounded-xl overflow-hidden animate-pulse"
-                >
-                  <div className="w-full h-40 bg-gray-700"></div>
-                  <div className="p-4">
-                    <div className="h-4 bg-gray-700 rounded mb-2"></div>
-                    <div className="h-3 bg-gray-700 rounded mb-3 w-4/5"></div>
-                    <div className="flex justify-between">
-                      <div className="h-3 bg-gray-700 rounded w-1/3"></div>
-                      <div className="h-3 bg-gray-700 rounded w-1/4"></div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               {homeData.mostBookedServices.map((service, index) => (
                 <Link
@@ -560,7 +488,6 @@ export default function HomePage() {
                 </Link>
               ))}
             </div>
-          )}
         </div>
       </section>
 
@@ -569,9 +496,7 @@ export default function HomePage() {
       {/* Why Choose Us */}
       <section className="py-16 bg-white">
         <div className="container mx-auto px-4">
-          <h2 className="section-title text-center mb-12">
-            Why Choose Citixo Services? - #1 Citixo Services Provider
-          </h2>
+         
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
             {[
               {
@@ -618,15 +543,9 @@ export default function HomePage() {
       <section className="py-16 bg-gray-50">
         <div className="container mx-auto px-4">
           <div className="max-w-4xl mx-auto">
-            <h2 className="text-3xl md:text-4xl font-bold text-center mb-8 text-gray-900">
-              Citixo Services - Your Trusted Home Service Partner
-            </h2>
+           
             <div className="prose prose-lg max-w-none text-gray-700">
-              <p className="text-lg leading-relaxed mb-6">
-                <strong>Citixo Services</strong> (also known as <strong>Citixo Services</strong>) is India's leading home services platform, 
-                providing professional cleaning, repairs, maintenance, and all domestic services right at your doorstep. 
-                Our verified professionals ensure quality service delivery with 100% satisfaction guarantee.
-              </p>
+              
               
               <h3 className="text-2xl font-semibold mb-4 text-gray-900">Why Choose Citixo Services?</h3>
               <ul className="list-disc pl-6 mb-6 space-y-2">
@@ -686,94 +605,6 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Category Services Popup */}
-      {showCategoryPopup && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          {/* Backdrop */}
-          <div
-            className="absolute inset-0 bg-black bg-opacity-50 transition-opacity duration-300"
-            onClick={closeCategoryPopup}
-          ></div>
-
-          {/* Popup Content */}
-          <div className="relative bg-white rounded-3xl w-full max-w-4xl max-h-[80vh] transform transition-all duration-300 ease-out animate-slide-up rounded-t-3xl">
-            {/* Header */}
-            <div className="flex items-center justify-between p-6 border-b border-gray-200">
-              <div className="flex items-center space-x-3">
-                <div
-                  className="w-10 h-10 rounded-full flex items-center justify-center"
-                  style={{ backgroundColor: selectedCategory?.color + "20" }}
-                >
-                  <span
-                    className="text-2xl"
-                    style={{ color: selectedCategory?.color }}
-                  >
-                    {selectedCategory?.icon}
-                  </span>
-                </div>
-                <div>
-                  <h3 className="text-xl font-bold text-gray-900">
-                    {selectedCategory?.name}
-                  </h3>
-                  <p className="text-sm text-gray-500">Available services</p>
-                </div>
-              </div>
-              <button
-                onClick={closeCategoryPopup}
-                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-              >
-                <X className="w-6 h-6 text-gray-500" />
-              </button>
-            </div>
-
-            {/* Services Grid */}
-            <div className="p-6 max-h-[60vh] overflow-y-auto">
-              {loadingServices ? (
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                  {[...Array(8)].map((_, index) => (
-                    <div
-                      key={index}
-                      className="bg-gray-100 rounded-xl p-4 animate-pulse"
-                    >
-                      <div className="w-full h-24 bg-gray-300 rounded-lg mb-3"></div>
-                      <div className="h-4 bg-gray-300 rounded"></div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                  {categoryServices.length > 0 &&
-                    categoryServices.map((service) => (
-                      <Link
-                        key={service.id}
-                        href={service.href}
-                        onClick={closeCategoryPopup}
-                        className="group flex flex-col items-center p-4 rounded-xl hover:bg-gray-50 transition-colors duration-200"
-                      >
-                        <div className="relative w-full h-24 rounded-lg overflow-hidden mb-3 group-hover:scale-105 transition-transform duration-200">
-                          <Image
-                            src={service.image || "/placeholder.jpg"}
-                            alt={service.name}
-                            fill
-                            className="object-cover"
-                          />
-                        </div>
-                        <h4 className="text-sm font-medium text-gray-900 text-center group-hover:text-blue-600 transition-colors">
-                          {service.name}
-                        </h4>
-                      </Link>
-                    ))}
-                  {categoryServices.length === 0 && (
-                    <div className="text-center text-gray-500">
-                      No services found
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

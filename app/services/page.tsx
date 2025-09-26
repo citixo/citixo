@@ -1,10 +1,10 @@
-"use client";
-
 import Link from "next/link";
 import Image from "next/image";
 import { Star, ArrowRight } from "lucide-react";
-import { useState, useEffect, useMemo, useCallback } from "react";
-// import LoadingSpinner from "@/components/ui/LoadingSpinner";
+import { Metadata } from "next";
+import connectDB from "@/lib/mongodb";
+import { CitixoServices, CitixoServiceCategories } from "@/lib/models";
+import ServicesInteractive from "@/components/services-interactive";
 
 interface Service {
   id: string;
@@ -29,42 +29,48 @@ interface ServiceCategory {
   services: Service[];
 }
 
-export default function ServicesPage() {
-  const [serviceCategories, setServiceCategories] = useState<ServiceCategory[]>(
-    []
-  );
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [selectedCategory, setSelectedCategory] = useState<string>("All");
+// Server-side data fetching
+async function getServicesPageData() {
+  try {
+    await connectDB();
 
-  useEffect(() => {
-    // Check for category parameter in URL
-    const urlParams = new URLSearchParams(window.location.search);
-    const categoryParam = urlParams.get("category");
-    if (categoryParam) {
-      setSelectedCategory(categoryParam);
-    }
-  }, []);
-
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
         // Fetch categories and services in parallel
-        const [categoriesResponse, servicesResponse] = await Promise.all([
-          fetch("/api/categories"),
-          fetch("/api/services")
-        ]);
+    const [categories, services] = await Promise.all([
+      CitixoServiceCategories.find({ status: "Active" })
+        .sort({ displayOrder: 1, createdAt: -1 }),
+      CitixoServices.find({ status: "Active" })
+        .sort({ bookingCount: -1, 'rating.average': -1 })
+    ]);
 
-        const [categoriesData, servicesData] = await Promise.all([
-          categoriesResponse.json(),
-          servicesResponse.json()
-        ]);
+    // Create category map
+    const categoryMap = categories.reduce((map, cat) => {
+      map[cat.categoryId] = cat.name;
+      return map;
+    }, {} as Record<string, string>);
 
-        if (categoriesData.success && servicesData.success) {
+    // Transform services data
+    const transformedServices = services.map((service: any) => ({
+      id: service.serviceId,
+      name: service.name,
+      description: service.description,
+      category: categoryMap[service.categoryId] || 'Uncategorized',
+      price: service.formattedPrice,
+      rating: service.rating.average,
+      reviews: service.rating.count,
+      bookings: service.bookingCount,
+      image: service.images ? service.images.url : "/placeholder.svg?height=200&width=300",
+      images: service.images || {},
+      href: `/services/${service.seo?.slug || service.serviceId}`,
+      status: service.status,
+      features: service.features,
+      includedServices: service.includedServices || [],
+      createdAt: service.createdAt
+    }));
+
           // Create a map of services by category
           const servicesByCategory: { [key: string]: Service[] } = {};
           
-          servicesData.data.forEach((service: Service) => {
+    transformedServices.forEach((service: Service) => {
             if (!servicesByCategory[service.category]) {
               servicesByCategory[service.category] = [];
             }
@@ -72,8 +78,8 @@ export default function ServicesPage() {
           });
 
           // Map categories with their services
-          const categories: ServiceCategory[] = categoriesData.data.map((category: any) => ({
-            id: category.id,
+    const serviceCategories: ServiceCategory[] = categories.map((category: any) => ({
+      id: category.categoryId,
             name: category.name,
             description: category.description,
             icon: category.icon,
@@ -82,67 +88,76 @@ export default function ServicesPage() {
           }));
 
           // Filter out categories with no active services
-          const categoriesWithServices = categories.filter(cat => cat.services.length > 0);
-          
-          setServiceCategories(categoriesWithServices);
-        } else {
-          setError("Failed to fetch data");
-        }
-      } catch (err) {
-        setError("Error loading data");
-        console.error("Error fetching data:", err);
-      } finally {
-        setLoading(false);
-      }
+    const categoriesWithServices = serviceCategories.filter(cat => cat.services.length > 0);
+
+    return {
+      serviceCategories: categoriesWithServices,
+      allCategories: ["All", ...categoriesWithServices.map((cat) => cat.name)]
     };
-
-    fetchData();
-  }, []);
-
-  // Memoized filtered categories for performance
-  const filteredCategories = useMemo(() => {
-    return selectedCategory === "All"
-      ? serviceCategories
-      : serviceCategories.filter(
-          (category) => category.name === selectedCategory
-        );
-  }, [selectedCategory, serviceCategories]);
-
-  const allCategories = useMemo(() => {
-    return ["All", ...serviceCategories.map((cat) => cat.name)];
-  }, [serviceCategories]);
-
-
-
-  if (loading) {
-    return (
-      <div className="py-8">
-        <div className="container mx-auto px-4">
-          {/* <LoadingSpinner size="lg" text="Loading services..." className="py-12" /> */}
-          <div className="w-12 h-12 border-4 border-[#0095FF]/30 border-t-[#0095FF] rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-400 flex items-center justify-center">Loading...</p>
-        </div>
-      </div>
-    );
+  } catch (error) {
+    console.error("Error fetching services page data:", error);
+    return {
+      serviceCategories: [],
+      allCategories: ["All"]
+    };
   }
+}
 
-  if (error) {
-    return (
-      <div className="py-8">
-        <div className="container mx-auto px-4">
-          <div className="text-center">
-            <p className="text-red-400">{error}</p>
-            <button
-              onClick={() => window.location.reload()}
-              className="mt-4 btn-primary"
-            >
-              Try Again
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
+// Metadata for SEO
+export const metadata: Metadata = {
+  title: "Our Services - Professional Home Services | Citixo Services",
+  description: "Explore our comprehensive range of professional home services including cleaning, AC service, plumbing, electrical work, painting, and more. Book online with verified professionals.",
+  keywords: [
+    "home services",
+    "cleaning services",
+    "AC service",
+    "plumbing services",
+    "electrical work",
+    "painting services",
+    "carpentry",
+    "appliance repair",
+    "maintenance services",
+    "professional cleaners",
+    "home repairs",
+    "domestic services",
+    "citixo services",
+    "citox services",
+    "book online",
+    "verified professionals"
+  ],
+  openGraph: {
+    title: "Our Services - Professional Home Services | Citixo Services",
+    description: "Explore our comprehensive range of professional home services including cleaning, AC service, plumbing, electrical work, painting, and more. Book online with verified professionals.",
+    url: 'https://www.citixoservices.com/services',
+    siteName: 'Citixo Services',
+    images: [
+      {
+        url: 'https://www.citixoservices.com/images/logo.jpeg',
+        width: 1200,
+        height: 630,
+        alt: 'Citixo Services - Professional Home Services',
+        type: 'image/jpeg',
+      },
+    ],
+    locale: 'en_US',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: "Our Services - Professional Home Services | Citixo Services",
+    description: "Explore our comprehensive range of professional home services including cleaning, AC service, plumbing, electrical work, painting, and more.",
+    images: ['https://www.citixoservices.com/images/logo.jpeg'],
+    creator: '@citixoservices',
+    site: '@citixoservices',
+  },
+  alternates: {
+    canonical: '/services',
+  },
+};
+
+export default async function ServicesPage() {
+  // Fetch data server-side
+  const { serviceCategories, allCategories } = await getServicesPageData();
 
   return (
     <div className="py-8">
@@ -157,97 +172,11 @@ export default function ServicesPage() {
           </p>
         </div>
 
-        {/* Category Filter */}
-        {!loading && allCategories.length > 1 && (
-          <div className="mb-12">
-            <div className="flex flex-wrap justify-center gap-4">
-              {allCategories.map((category) => (
-                <button
-                  key={category}
-                  onClick={() => setSelectedCategory(category)}
-                  className={`px-6 py-3 rounded-lg font-medium transition-all duration-200 ${
-                    selectedCategory === category
-                      ? "bg-[#0095FF] text-white"
-                      : "bg-[#1A2332] text-gray-300 hover:bg-[#374151]"
-                  }`}
-                >
-                  {category}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Services by Category */}
-        {filteredCategories.map((category, categoryIndex) => (
-          <section key={category.id} className="mb-16">
-            <div className="mb-8 flex items-center space-x-3">
-              {category.icon && (
-                <span className="text-2xl">{category.icon}</span>
-              )}
-              <div>
-                <h2 className="text-3xl font-bold mb-2" style={{ color: category.color || '#ffffff' }}>
-                  {category.name}
-                </h2>
-                <p className="text-gray-400">{category.description}</p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {category.services.map((service, serviceIndex) => (
-                <div key={serviceIndex} className="service-card group">
-                  <div className="relative overflow-hidden rounded-lg mb-4">
-                    <Image
-                      src={service.image || "/placeholder.svg"}
-                      alt={service.name}
-                      width={300}
-                      height={200}
-                      loading="lazy"
-                      placeholder="blur"
-                      blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAAIAAoDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAhEAACAQMDBQAAAAAAAAAAAAABAgMABAUGIWGRkqGx0f/EABUBAQEAAAAAAAAAAAAAAAAAAAMF/8QAGhEAAgIDAAAAAAAAAAAAAAAAAAECEgMRkf/aAAwDAQACEQMRAD8AltJagyeH0AthI5xdrLcNM91BF5pX2HaH9bcfaSXWGaRmknyJckliyjqTzSlT54b6bk+h0R//2Q=="
-                      className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-300"
-                    />
-                  </div>
-
-                  <div className="flex items-start justify-between mb-2">
-                    <h3 className="text-lg font-semibold">{service.name}</h3>
-                    <div className="flex items-center space-x-1">
-                      <Star className="w-4 h-4 text-yellow-400 fill-current" />
-                      <span className="text-sm text-gray-400">
-                        {service.rating}
-                      </span>
-                    </div>
-                  </div>
-
-                  <p className="text-gray-400 mb-4 text-sm">
-                    {service.description}
-                  </p>
-
-                  <div className="flex items-center justify-between">
-                    <span className="text-[#0095FF] font-semibold">
-                      {service.price}
-                    </span>
-                    <div className="flex space-x-2 w-full ml-4">
-                      <Link
-                        href={`/services/${service.id}`}
-                        className="bg-[#0095FF] hover:bg-[#0080E6] text-white px-3 py-1 rounded text-sm transition-colors flex items-center space-x-1 flex-1 justify-center"
-                      >
-                        <span>View Details</span>
-                        <ArrowRight className="w-4 h-4" />
-                      </Link>
-                      <Link
-                        href={`/book/${service.id}`}
-                        className="bg-orange-500 hover:bg-orange-600 text-white px-3 py-1 rounded text-sm transition-colors text-center flex-1"
-                      >
-                        Book Now
-                      </Link>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
-        ))}
+        {/* Interactive Services Section */}
+        <ServicesInteractive 
+          serviceCategories={serviceCategories}
+          allCategories={allCategories}
+        />
 
 
 
