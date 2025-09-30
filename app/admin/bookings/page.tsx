@@ -15,6 +15,23 @@ export default function BookingsPage() {
 
   const statuses = ["All", "Pending", "Confirmed", "In Progress", "Completed", "Cancelled"]
 
+  // Helper function to format time with AM/PM
+  const formatTimeWithAMPM = (time: string) => {
+    if (!time) return 'Not specified';
+    
+    // Check if time is already in 12-hour format
+    if (time.includes('AM') || time.includes('PM')) {
+      return time;
+    }
+    
+    // Convert 24-hour to 12-hour format
+    const [hours, minutes] = time.split(':');
+    const hour24 = parseInt(hours);
+    const hour12 = hour24 === 0 ? 12 : hour24 > 12 ? hour24 - 12 : hour24;
+    const ampm = hour24 >= 12 ? 'PM' : 'AM';
+    return `${hour12}:${minutes} ${ampm}`;
+  }
+
   // Fetch bookings from API
   const fetchBookings = async () => {
     try {
@@ -41,7 +58,7 @@ export default function BookingsPage() {
   const filteredBookings = bookings.filter((booking) => {
     const matchesSearch =
       booking.customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      booking.service.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (booking.service?.name || booking.service).toLowerCase().includes(searchTerm.toLowerCase()) ||
       booking.id.toLowerCase().includes(searchTerm.toLowerCase())
     const matchesStatus = filterStatus === "All" || booking.status === filterStatus
     return matchesSearch && matchesStatus
@@ -125,7 +142,7 @@ export default function BookingsPage() {
               type="text"
               placeholder="Search bookings..."
               value={searchTerm}
-              // onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full bg-white border border-[#2D3748] rounded-lg pl-10 pr-4 py-2 text-black placeholder-gray-400 focus:outline-none focus:border-[#0095FF]"
             />
           </div>
@@ -155,7 +172,6 @@ export default function BookingsPage() {
                 <th className="text-left py-4 px-6 text-gray-900 font-medium">Booking ID</th>
                 <th className="text-left py-4 px-6 text-gray-900 font-medium">Customer</th>
                 <th className="text-left py-4 px-6 text-gray-900 font-medium">Service</th>
-                <th className="text-left py-4 px-6 text-gray-900 font-medium">Date & Time</th>
                 <th className="text-left py-4 px-6 text-gray-900 font-medium">Amount</th>
                 <th className="text-left py-4 px-6 text-gray-900 font-medium">Status</th>
                 <th className="text-left py-4 px-6 text-gray-900 font-medium">Professional</th>
@@ -177,16 +193,6 @@ export default function BookingsPage() {
                   <td className="py-4 px-6">
                     <span className="text-black">{booking.service?.name || booking.service}</span>
                   </td>
-                  <td className="py-4 px-6">
-                    <div className="flex items-center space-x-2">
-                      <Calendar className="w-4 h-4 text-gray-900" />
-                      <span className="text-black">{booking.date}</span>
-                    </div>
-                    <div className="flex items-center space-x-2 mt-1">
-                      <Clock className="w-4 h-4 text-gray-900" />
-                      <span className="text-gray-900 text-sm">{booking.time}</span>
-                    </div>
-                  </td>
                   <td className="py-4 px-6 text-black font-semibold">₹{booking.amount}</td>
                   <td className="py-4 px-6">
                     <select
@@ -203,9 +209,9 @@ export default function BookingsPage() {
                   </td>
                   <td className="py-4 px-6">
                     <span
-                      className={`text-sm ${booking.professional === "Unassigned" ? "text-gray-400" : "text-black"}`}
+                      className={`text-sm font-medium ${!booking.professional || booking.professional === "Unassigned" ? "text-orange-600 bg-orange-50 px-2 py-1 rounded" : "text-green-600 bg-green-50 px-2 py-1 rounded"}`}
                     >
-                      {booking.professional}
+                      {booking.professional?.name || booking.professional || "Unassigned"}
                     </span>
                   </td>
                   <td className="py-4 px-6">
@@ -282,38 +288,103 @@ export default function BookingsPage() {
                 </div>
               </div>
 
+              {/* Schedule Information */}
+              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-4 border border-blue-200">
+                <h3 className="text-black font-semibold mb-3 flex items-center">
+                  <Calendar className="w-5 h-5 mr-2 text-blue-600" />
+                  Schedule Information
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="bg-white rounded-lg p-3 border border-blue-100">
+                    <label className="block text-gray-600 text-sm font-medium mb-1">Appointment Date</label>
+                    <p className="text-black text-lg font-semibold">
+                      {selectedBooking.scheduledDate ? new Date(selectedBooking.scheduledDate).toLocaleDateString('en-IN', {
+                        weekday: 'long',
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric'
+                      }) : selectedBooking.date}
+                    </p>
+                  </div>
+                  <div className="bg-white rounded-lg p-3 border border-blue-100">
+                    <label className="block text-gray-600 text-sm font-medium mb-1">Appointment Time</label>
+                    <p className="text-black text-lg font-semibold">
+                      {formatTimeWithAMPM(selectedBooking.scheduledTime || selectedBooking.time)}
+                    </p>
+                  </div>
+                  <div className="bg-white rounded-lg p-3 border border-blue-100">
+                    <label className="block text-gray-600 text-sm font-medium mb-1">Quantity</label>
+                    <p className="text-black font-medium">{selectedBooking.quantity || 1}</p>
+                  </div>
+                  <div className="bg-white rounded-lg p-3 border border-blue-100">
+                    <label className="block text-gray-600 text-sm font-medium mb-1">Professional</label>
+                    <p className={`text-sm font-medium ${!selectedBooking.professional || selectedBooking.professional === "Unassigned" ? "text-orange-600" : "text-green-600"}`}>
+                      {selectedBooking.professional?.name || selectedBooking.professional || "Unassigned"}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
               {/* Service Info */}
               <div className="bg-slate-50 rounded-lg p-4">
                 <h3 className="text-black font-semibold mb-3">Service Information</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-gray-400 text-sm mb-1">Service</label>
-                    <p className="text-black">{selectedBooking?.service?.name}</p>
+                    <p className="text-black">{selectedBooking?.service?.name || selectedBooking.service}</p>
                   </div>
                   <div>
                     <label className="block text-gray-900 text-sm mb-1">Amount</label>
                     <p className="text-[#0095FF] font-semibold">₹{selectedBooking.amount}</p>
                   </div>
                   <div>
-                    <label className="block text-gray-900 text-sm mb-1">Date</label>
-                    <p className="text-black">{selectedBooking.date}</p>
+                    <label className="block text-gray-900 text-sm mb-1">Payment Status</label>
+                    <p className={`text-sm font-medium ${selectedBooking.paymentStatus === 'Paid' ? 'text-green-600' : 'text-orange-600'}`}>
+                      {selectedBooking.paymentStatus || 'Pending'}
+                    </p>
                   </div>
                   <div>
-                    <label className="block text-gray-900 text-sm mb-1">Time</label>
-                    <p className="text-black">{selectedBooking.time}</p>
-                  </div>
-                  <div>
-                    <label className="block text-gray-900 text-sm mb-1">Professional</label>
-                    <p className="text-black">{selectedBooking.professional}</p>
+                    <label className="block text-gray-900 text-sm mb-1">Booking ID</label>
+                    <p className="text-[#0095FF] font-semibold">{selectedBooking.id}</p>
                   </div>
                 </div>
               </div>
 
-              {/* Notes */}
-              <div>
-                <label className="block text-gray-900 text-sm font-medium mb-2">Notes</label>
-                <p className="text-gray-900 bg-white rounded-lg p-3">{selectedBooking.notes}</p>
+              {/* Notes and Instructions */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-gray-900 text-sm font-medium mb-2">Notes</label>
+                  <p className="text-gray-900 bg-white rounded-lg p-3 min-h-[60px]">
+                    {selectedBooking.notes || "No notes provided"}
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-gray-900 text-sm font-medium mb-2">Special Instructions</label>
+                  <p className="text-gray-900 bg-white rounded-lg p-3 min-h-[60px]">
+                    {selectedBooking.specialInstructions || "No special instructions"}
+                  </p>
+                </div>
               </div>
+
+              {/* Status History */}
+              {selectedBooking.statusHistory && selectedBooking.statusHistory.length > 0 && (
+                <div>
+                  <label className="block text-gray-900 text-sm font-medium mb-2">Status History</label>
+                  <div className="bg-white rounded-lg p-3 max-h-40 overflow-y-auto">
+                    {selectedBooking.statusHistory.map((history: any, index: number) => (
+                      <div key={index} className="flex justify-between items-center py-2 border-b border-gray-100 last:border-b-0">
+                        <div>
+                          <span className="font-medium text-black">{history.status}</span>
+                          {history.notes && <span className="text-gray-600 text-sm ml-2">- {history.notes}</span>}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          {new Date(history.timestamp).toLocaleString('en-IN')}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Actions */}
               <div className="flex justify-end space-x-4 pt-4 border-t border-[#2D3748]">
