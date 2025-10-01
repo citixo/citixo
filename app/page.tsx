@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 import Image from "next/image";
 import {
@@ -12,9 +14,7 @@ import {
   X,
   ChevronUp,
 } from "lucide-react";
-import { Metadata } from "next";
-import connectDB from "@/lib/mongodb";
-import { CitixoServices, CitixoServiceCategories } from "@/lib/models";
+import { useEffect, useState } from "react";
 import HomeInteractive from "@/components/home-interactive";
 
 interface Service {
@@ -35,7 +35,9 @@ interface HomePageData {
   featuredServices: Service[];
   newServices: Service[];
   mostBookedServices: Service[];
+  marketingServices: Service[];
   categories: any;
+  uniqueCategories: string[];
 }
 
 interface CategoryService {
@@ -46,88 +48,14 @@ interface CategoryService {
   href: string;
 }
 
-// Server-side data fetching
-async function getHomePageData() {
+// Client-side data fetching
+async function fetchHomePageData() {
   try {
-    await connectDB();
-
-    // Fetch services and categories in parallel
-    const [services, categories] = await Promise.all([
-      CitixoServices.find({ status: "Active" })
-        .sort({ bookingCount: -1, 'rating.average': -1 })
-        .limit(50),
-      CitixoServiceCategories.find({ status: "Active" })
-        .sort({ displayOrder: 1, createdAt: -1 })
-    ]);
-
-    // Create category map
-    const categoryMap = categories.reduce((map, cat) => {
-      map[cat.categoryId] = cat.name;
-      return map;
-    }, {} as Record<string, string>);
-
-    // Transform services data
-    const transformedServices = services.map((service: any) => ({
-      id: service.serviceId,
-      name: service.name,
-      description: service.description,
-      category: categoryMap[service.categoryId] || 'Uncategorized',
-      price: service.formattedPrice,
-      rating: service.rating.average,
-      reviews: service.rating.count,
-      bookings: service.bookingCount,
-      image: service.images ? service.images.url : "/placeholder.svg?height=200&width=300",
-      images: service.images || {},
-      href: `/services/${service.seo?.slug || service.serviceId}`,
-      status: service.status,
-      features: service.features,
-      includedServices: service.includedServices || [],
-      createdAt: service.createdAt
-    }));
-
-          // Get unique categories
-    const uniqueCategories = [
-      ...new Set(transformedServices.map((service: Service) => service.category))
-          ] as string[];
-
-          // Sort services by bookings for most booked
-    const mostBookedServices = [...transformedServices]
-            .sort((a, b) => b.bookings - a.bookings)
-            .slice(0, 4);
-
-          // Sort by creation date for new services (most recent first)
-    const newServices = [...transformedServices]
-            .sort(
-              (a, b) =>
-                new Date(b.createdAt).getTime() -
-                new Date(a.createdAt).getTime()
-            )
-            .slice(0, 5);
-
-          // Featured services (high rating and good bookings)
-    const featuredServices = [...transformedServices]
-            .filter(
-              (service) => service.rating >= 4.7 && service.bookings >= 500
-            )
-            .slice(0, 6);
-
-    // Marketing services (first 4 services)
-    const marketingServices = transformedServices.slice(0, 4);
-
-    return {
-            featuredServices,
-            newServices,
-            mostBookedServices,
-      marketingServices,
-      categories: categories.map(cat => ({
-        id: cat.categoryId,
-        name: cat.name,
-        description: cat.description,
-        icon: cat.icon,
-        color: cat.color
-      })),
-      uniqueCategories
-    };
+    const response = await fetch('/api/homepage');
+    if (!response.ok) {
+      throw new Error('Failed to fetch data');
+    }
+    return await response.json();
   } catch (error) {
     console.error("Error fetching home page data:", error);
     return {
@@ -141,86 +69,36 @@ async function getHomePageData() {
   }
 }
 
-// Metadata for SEO
-export const metadata: Metadata = {
-  title: "Citixo Services - Professional Home Services | #1 Home Service Provider",
-  description: "India's #1 trusted home service provider. Professional cleaning, AC service, plumbing, electrical work, painting & maintenance. Book online with verified professionals. 100% satisfaction guaranteed!",
-  keywords: [
-    "citixo services",
-    "citox services", 
-    "home services",
-    "cleaning services",
-    "home repairs",
-    "maintenance services",
-    "professional cleaners",
-    "home improvement",
-    "domestic services",
-    "house cleaning",
-    "AC service",
-    "plumbing",
-    "electrical work",
-    "painting services",
-    "carpentry",
-    "appliance repair",
-    "deep cleaning",
-    "regular cleaning",
-    "office cleaning",
-    "carpet cleaning",
-    "window cleaning",
-    "kitchen cleaning",
-    "bathroom cleaning",
-    "home maintenance",
-    "citixo services near me",
-    "citox services booking",
-    "professional home services",
-    "trusted home service provider",
-    "verified professionals",
-    "home service booking",
-    "domestic help",
-    "house maintenance",
-    "home renovation",
-    "interior cleaning",
-    "exterior cleaning",
-    "move in cleaning",
-    "move out cleaning",
-    "post construction cleaning",
-    "commercial cleaning",
-    "residential cleaning"
-  ],
-  openGraph: {
-    title: "Citixo Services - Professional Home Services | #1 Home Service Provider",
-    description: "India's #1 trusted home service provider. Professional cleaning, AC service, plumbing, electrical work, painting & maintenance. Book online with verified professionals. 100% satisfaction guaranteed!",
-    url: 'https://www.citixoservices.com',
-    siteName: 'Citixo Services',
-    images: [
-      {
-        url: 'https://www.citixoservices.com/images/logo.jpeg',
-        width: 1200,
-        height: 630,
-        alt: 'Citixo Services - Professional Home Services Logo',
-        type: 'image/jpeg',
-      },
-    ],
-    locale: 'en_US',
-    type: 'website',
-    countryName: 'India',
-  },
-  twitter: {
-    card: 'summary_large_image',
-    title: "Citixo Services - Professional Home Services | #1 Home Service Provider",
-    description: "India's #1 trusted home service provider. Professional cleaning, AC service, plumbing, electrical work, painting & maintenance. Book online with verified professionals.",
-    images: ['https://www.citixoservices.com/images/logo.jpeg'],
-    creator: '@citixoservices',
-    site: '@citixoservices',
-  },
-  alternates: {
-    canonical: '/',
-  },
-};
 
-export default async function HomePage() {
-  // Fetch data server-side
-  const homeData = await getHomePageData();
+export default function HomePage() {
+  const [homeData, setHomeData] = useState<HomePageData>({
+    featuredServices: [],
+    newServices: [],
+    mostBookedServices: [],
+    marketingServices: [],
+    categories: [],
+    uniqueCategories: []
+  });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const data = await fetchHomePageData();
+        setHomeData(data);
+      } catch (err) {
+        setError('Failed to load data');
+        console.error('Error loading home page data:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadData();
+  }, []);
 
   const formatReviews = (bookings: number) => {
     if (bookings >= 1000) {
@@ -228,6 +106,33 @@ export default async function HomePage() {
     }
     return bookings.toString();
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading services...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-red-600 mb-4">{error}</p>
+          <button 
+            onClick={() => window.location.reload()} 
+            className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+          >
+            Try Again
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="">

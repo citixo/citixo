@@ -5,91 +5,108 @@ import { CitixoServices, CitixoServiceCategories } from "@/lib/models"
 // GET - Fetch all services
 export async function GET(request: NextRequest) {
   try {
-    await connectDB()
+    await connectDB();
 
-    const { searchParams } = new URL(request.url)
-    const category = searchParams.get('category')
-    const status = searchParams.get('status') || 'Active'
-    const limit = parseInt(searchParams.get('limit') || '50')
-    const page = parseInt(searchParams.get('page') || '1')
-    const search = searchParams.get('search')
+    const { searchParams } = new URL(request.url);
+
+    const category = searchParams.get("category");
+    const status = searchParams.get("status") || "Active";
+    const limitParam = searchParams.get("limit");
+    const pageParam = searchParams.get("page");
+    const search = searchParams.get("search");
+
+    const limit = limitParam ? parseInt(limitParam) : undefined;
+    const page = pageParam ? parseInt(pageParam) : 1;
 
     // Build query
-    let query: any = { status }
-    
+    let query: any = { status };
+
     if (category) {
       // Find category by name or ID
       const categoryDoc = await CitixoServiceCategories.findOne({
         $or: [
           { categoryId: category },
-          { name: { $regex: category, $options: 'i' } }
-        ]
-      })
+          { name: { $regex: category, $options: "i" } },
+        ],
+      });
+
       if (categoryDoc) {
-        query.categoryId = categoryDoc.categoryId
+        query.categoryId = categoryDoc.categoryId;
       }
     }
 
     if (search) {
       query.$or = [
-        { name: { $regex: search, $options: 'i' } },
-        { description: { $regex: search, $options: 'i' } },
-        { tags: { $regex: search, $options: 'i' } }
-      ]
+        { name: { $regex: search, $options: "i" } },
+        { description: { $regex: search, $options: "i" } },
+        { tags: { $regex: search, $options: "i" } },
+      ];
     }
 
-    // Get services with category information
-    const services = await CitixoServices.find(query)
-      .sort({ bookingCount: -1, 'rating.average': -1 })
-      .limit(limit)
-      .skip((page - 1) * limit)
+    // Query builder
+    let queryExec = CitixoServices.find(query).sort({
+      bookingCount: -1,
+      "rating.average": -1,
+    });
 
-    // Get total count for pagination
-    const totalCount = await CitixoServices.countDocuments(query)
+    // Apply pagination only if limit exists
+    if (limit) {
+      queryExec = queryExec.limit(limit).skip((page - 1) * limit);
+    }
 
-    // Get category information for transformation
-    const categoryIds = [...new Set(services.map(service => service.categoryId))]
-    const categories = await CitixoServiceCategories.find({ 
-      categoryId: { $in: categoryIds } 
-    }).select('categoryId name')
-    
+    const services = await queryExec;
+
+    // Get total count
+    const totalCount = await CitixoServices.countDocuments(query);
+
+    // Get category info for transformation
+    const categoryIds = [...new Set(services.map((s) => s.categoryId))];
+    const categories = await CitixoServiceCategories.find({
+      categoryId: { $in: categoryIds },
+    }).select("categoryId name");
+
     const categoryMap = categories.reduce((map, cat) => {
-      map[cat.categoryId] = cat.name
-      return map
-    }, {} as Record<string, string>)
+      map[cat.categoryId] = cat.name;
+      return map;
+    }, {} as Record<string, string>);
 
-    // Transform data to match old format for backward compatibility
-    const transformedServices = services.map((service:any) => ({
+    // Transform data
+    const transformedServices = services.map((service: any) => ({
       id: service.serviceId,
       name: service.name,
       description: service.description,
-      category: categoryMap[service.categoryId] || 'Uncategorized',
+      category: categoryMap[service.categoryId] || "Uncategorized",
       price: service.formattedPrice,
       rating: service.rating.average,
       reviews: service.rating.count,
       bookings: service.bookingCount,
-      image: service.images ? service.images.url : "/placeholder.svg?height=200&width=300",
-      images: service.images || {}, // Include full images array
+      image:
+        service.images?.url ||
+        "/placeholder.svg?height=200&width=300",
+      images: service.images || {}, // full images array
       href: `/services/${service.seo?.slug || service.serviceId}`,
       status: service.status,
       features: service.features,
       includedServices: service.includedServices || [],
-      createdAt: service.createdAt
-    }))
+      createdAt: service.createdAt,
+    }));
 
     return NextResponse.json({
       success: true,
       data: transformedServices,
       pagination: {
         page,
-        limit,
+        limit: limit || totalCount, // if no limit → show all
         total: totalCount,
-        pages: Math.ceil(totalCount / limit)
-      }
-    })
+        pages: limit ? Math.ceil(totalCount / limit) : 1, // if no limit → only 1 page
+      },
+    });
   } catch (error) {
-    console.error("Error fetching services:", error)
-    return NextResponse.json({ success: false, error: "Failed to fetch services" }, { status: 500 })
+    console.error("Error fetching services:", error);
+    return NextResponse.json(
+      { success: false, error: "Failed to fetch services" },
+      { status: 500 }
+    );
   }
 }
 

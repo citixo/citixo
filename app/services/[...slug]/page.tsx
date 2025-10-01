@@ -333,7 +333,8 @@ export default function DynamicServicePage() {
                 alt={service.name}
                 width={600}
                 height={400}
-                className="w-full h-64 md:h-80 object-cover rounded-xl mb-6"
+                
+                className="w-full h-64 md:h-80 object-contain rounded-xl mb-6"
               />
 
               <div className="flex items-center justify-between mb-4">

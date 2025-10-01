@@ -487,9 +487,6 @@ export default function ServicesPage() {
                     maxImages={5}
                     folder="services"
                     transformations={{
-                      width: 800,
-                      height: 600,
-                      crop: 'fill',
                       quality: 'auto'
                     }}
                   />
