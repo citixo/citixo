@@ -2,6 +2,17 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Ensure Tailwind CSS is loaded properly */
+@layer base {
+  html {
+    font-family: system-ui, sans-serif;
+  }
+  
+  body {
+    @apply bg-white text-gray-900 antialiased;
+  }
+}
+
 @layer utilities {
   .line-clamp-2 {
     display: -webkit-box;

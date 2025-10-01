@@ -19,10 +19,14 @@ import {
   Minus,
   Plus,
   AlertCircle,
-  ArrowRight
+  ArrowRight,
+  Tag,
+  X
 } from "lucide-react"
 import { cookies } from "next/headers";
 import { toast } from "react-toastify";
+import RazorpayPayment from "@/components/RazorpayPayment";
+import confetti from "canvas-confetti";
 
 interface Service {
   id: string
@@ -53,6 +57,15 @@ interface BookingForm {
   notes: string
 }
 
+interface CouponData {
+  couponCode: string
+  discountPercentage: number
+  discountAmount: number
+  originalAmount: number
+  finalAmount: number
+  description: string
+}
+
 export default function DynamicBookingPage() {
   const params = useParams()
   const router = useRouter()
@@ -65,6 +78,11 @@ export default function DynamicBookingPage() {
   const [showSuccessModal, setShowSuccessModal] = useState(false)
   const [isGettingLocation, setIsGettingLocation] = useState(false)
   const [locationError, setLocationError] = useState("")
+  const [showPaymentModal, setShowPaymentModal] = useState(false)
+  const [paymentData, setPaymentData] = useState<any>(null)
+  const [couponCode, setCouponCode] = useState("")
+  const [appliedCoupon, setAppliedCoupon] = useState<CouponData | null>(null)
+  const [isValidatingCoupon, setIsValidatingCoupon] = useState(false)
   
   const [formData, setFormData] = useState<BookingForm>({
     fullName: "",
@@ -197,8 +215,27 @@ export default function DynamicBookingPage() {
 
 
 
+  // Validation functions
+  const validatePhone = (phone: string) => {
+    const digitsOnly = phone.replace(/\D/g, '')
+    return digitsOnly.length <= 10
+  }
+
+  const validateEmail = (email: string) => {
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@gmail\.com$/
+    return emailRegex.test(email)
+  }
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target
+    
+    // Phone number validation - prevent more than 10 digits
+    if (name === 'phone') {
+      if (!validatePhone(value)) {
+        return // Don't update if more than 10 digits
+      }
+    }
+    
     setFormData(prev => ({
       ...prev,
       [name]: value
@@ -227,6 +264,88 @@ export default function DynamicBookingPage() {
     const price = service.price.replace("Starting ","");
     const combinedNumber:any = getCombinedNumber(price);
     return combinedNumber * formData.quantity
+  }
+
+  const calculateFinalAmount = () => {
+    const total = calculateTotal()
+    if (appliedCoupon) {
+      return appliedCoupon.finalAmount
+    }
+    return total
+  }
+
+  const validateCoupon = async () => {
+    if (!couponCode.trim()) {
+      toast.error("Please enter a coupon code")
+      return
+    }
+
+    // Prevent duplicate validation
+    if (isValidatingCoupon) return
+
+    setIsValidatingCoupon(true)
+    try {
+      const response = await fetch("/api/coupons/validate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          code: couponCode.trim(),
+          amount: calculateTotal()
+        })
+      })
+
+      const result = await response.json()
+
+      if (result.success) {
+        // Smooth state update without reload
+        setAppliedCoupon(result.data)
+        setCouponCode("")
+        
+        // Trigger confetti celebration
+        confetti({
+          particleCount: 100,
+          spread: 70,
+          origin: { y: 0.6 }
+        })
+        
+        toast.success(`🎉 Coupon applied! You saved ₹${result.data.discountAmount}`)
+      } else {
+        toast.error(result.error || "Invalid coupon code")
+        // Clear the input on error for better UX
+        setCouponCode("")
+      }
+    } catch (error) {
+      console.error("Error validating coupon:", error)
+      toast.error("Failed to validate coupon code")
+      setCouponCode("")
+    } finally {
+      setIsValidatingCoupon(false)
+    }
+  }
+
+  const removeCoupon = () => {
+    // Smooth state update without reload
+    setAppliedCoupon(null)
+    toast.info("Coupon removed")
+  }
+
+  // Handle Enter key press for coupon input
+  const handleCouponKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !isValidatingCoupon) {
+      e.preventDefault()
+      e.stopPropagation()
+      validateCoupon()
+    }
+  }
+
+  // Prevent form submission when pressing Enter in coupon input
+  const handleCouponInputKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      e.stopPropagation()
+    }
   }
 
   // Get current location and reverse geocode
@@ -295,14 +414,39 @@ export default function DynamicBookingPage() {
      
     if (!service) return
     
+    // Validate form data
+    if (!formData.fullName || !formData.email || !formData.phone || !formData.address || 
+        !formData.city || !formData.pincode || !formData.date || !formData.time) {
+      setError("Please fill in all required fields")
+      return
+    }
+
+    // Validate phone number (exactly 10 digits)
+    const phoneDigits = formData.phone.replace(/\D/g, '')
+    if (phoneDigits.length !== 10) {
+      setError("Phone number must be exactly 10 digits")
+      return
+    }
+
+    // Validate email (must be gmail.com)
+    if (!validateEmail(formData.email)) {
+      setError("Please enter a valid Gmail address (e.g., yourname@gmail.com)")
+      return
+    }
+
+    setError("")
+    setShowPaymentModal(true)
+  }
+
+  const handlePaymentSuccess = async (paymentData: any) => {
     setIsSubmitting(true)
     setError("")
 
     try {
-      // Create booking object
+      // Create booking object with payment data
       const bookingData = {
         userId: Cookies.get("email"), // Use user email as temporary userId
-        serviceId: service.id,
+        serviceId: service?.id,
         scheduledDate: formData.date,
         scheduledTime: formData.time,
         quantity: formData.quantity,
@@ -318,7 +462,26 @@ export default function DynamicBookingPage() {
             zipCode: formData.pincode
           }
         },
-        specialInstructions: formData.notes
+        specialInstructions: formData.notes,
+        // Add coupon information if applied
+        ...(appliedCoupon && {
+          discount: {
+            amount: appliedCoupon.discountAmount,
+            type: 'Percentage',
+            couponCode: appliedCoupon.couponCode,
+            discountPercentage: appliedCoupon.discountPercentage
+          },
+          totalAmount: calculateTotal(),
+          finalAmount: appliedCoupon.finalAmount
+        }),
+        paymentData: {
+          paymentId: paymentData.payment_id,
+          orderId: paymentData.order_id,
+          amount: paymentData.amount,
+          currency: paymentData.currency,
+          status: paymentData.status,
+          method: paymentData.method
+        }
       }
 
       // Call booking API
@@ -334,6 +497,7 @@ export default function DynamicBookingPage() {
       const result = await response.json()
 
       if (result.success) {
+        setShowPaymentModal(false)
         setShowSuccessModal(true)
         
         // Clear form
@@ -361,6 +525,11 @@ export default function DynamicBookingPage() {
     }
   }
 
+  const handlePaymentError = (error: string) => {
+    setError(error)
+    setShowPaymentModal(false)
+  }
+
   const formatPrice = (price: any) => {
     return price
   }
@@ -376,12 +545,12 @@ export default function DynamicBookingPage() {
     )
   }
 
-  if (error || !service) {
+  if (!service) {
     return (
-      <div className="min-h-screen bg-[#111B22] flex items-center justify-center px-4">
+      <div className="min-h-screen bg-white flex items-center justify-center px-4">
         <div className="text-center max-w-md">
           <AlertCircle className="w-16 h-16 text-red-400 mx-auto mb-4" />
-          <h1 className="text-2xl font-bold text-white mb-2">Service Not Found</h1>
+          <h1 className="text-2xl font-bold text-black mb-2">Service Not Found</h1>
           <p className="text-gray-400 mb-6">{error || "The requested service could not be found."}</p>
           <Link
             href="/services"
@@ -491,7 +660,7 @@ export default function DynamicBookingPage() {
                       
                       <div>
                         <label className="block text-gray-900 text-sm font-medium mb-2">
-                          Phone Number *
+                          Phone Number * (10 digits only)
                         </label>
                         <div className="relative">
                           <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-900 w-5 h-5" />
@@ -500,11 +669,19 @@ export default function DynamicBookingPage() {
                             name="phone"
                             value={formData.phone}
                             onChange={handleInputChange}
-                            placeholder="+91 9876543210"
-                            className="w-full bg-white border border-[#2D3748] rounded-lg pl-10 pr-4 py-3 text-black placeholder-gray-400 focus:outline-none focus:border-[#0095FF] focus:ring-1 focus:ring-[#0095FF] transition-colors"
+                            placeholder="9876543210"
+                            maxLength={10}
+                            className={`w-full bg-white border rounded-lg pl-10 pr-4 py-3 text-black placeholder-gray-400 focus:outline-none focus:ring-1 transition-colors ${
+                              formData.phone && formData.phone.replace(/\D/g, '').length !== 10
+                                ? 'border-red-500 focus:border-red-500 focus:ring-red-500'
+                                : 'border-[#2D3748] focus:border-[#0095FF] focus:ring-[#0095FF]'
+                            }`}
                             required
                           />
                         </div>
+                        {formData.phone && formData.phone.replace(/\D/g, '').length !== 10 && (
+                          <p className="text-red-500 text-xs mt-1">Phone number must be exactly 10 digits</p>
+                        )}
                       </div>
                       
                       <div className="md:col-span-2">
@@ -518,11 +695,18 @@ export default function DynamicBookingPage() {
                             name="email"
                             value={formData.email}
                             onChange={handleInputChange}
-                            placeholder="your@email.com"
-                            className="w-full bg-white border border-[#2D3748] rounded-lg pl-10 pr-4 py-3 text-black placeholder-gray-400 focus:outline-none focus:border-[#0095FF] focus:ring-1 focus:ring-[#0095FF] transition-colors"
+                            placeholder="yourname@gmail.com"
+                            className={`w-full bg-white border rounded-lg pl-10 pr-4 py-3 text-black placeholder-gray-400 focus:outline-none focus:ring-1 transition-colors ${
+                              formData.email && !validateEmail(formData.email)
+                                ? 'border-red-500 focus:border-red-500 focus:ring-red-500'
+                                : 'border-[#2D3748] focus:border-[#0095FF] focus:ring-[#0095FF]'
+                            }`}
                             required
                           />
                         </div>
+                        {formData.email && !validateEmail(formData.email) && (
+                          <p className="text-red-500 text-xs mt-1">Please enter a valid Gmail address (e.g., yourname@gmail.com)</p>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -531,24 +715,7 @@ export default function DynamicBookingPage() {
                   <div>
                     <div className="flex items-center justify-between mb-4">
                       <h3 className="text-lg font-semibold text-black">Service Address</h3>
-                      <button
-                        type="button"
-                        onClick={getCurrentLocation}
-                        disabled={isGettingLocation}
-                        className="inline-flex items-center space-x-2 bg-[#0095FF] hover:bg-[#0080E6] disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-                      >
-                        {isGettingLocation ? (
-                          <>
-                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                            <span>Getting Location...</span>
-                          </>
-                        ) : (
-                          <>
-                            <MapPin className="w-4 h-4" />
-                            <span>Use Current Location</span>
-                          </>
-                        )}
-                      </button>
+                      
                     </div>
                     
                     {locationError && (
@@ -704,23 +871,97 @@ export default function DynamicBookingPage() {
                     />
                   </div>
 
+                  {/* Coupon Code Section */}
+                  <div>
+                    <label className="block text-gray-900 text-sm font-medium mb-2">
+                      Coupon Code (Optional)
+                    </label>
+                    {!appliedCoupon ? (
+                      <div className="flex space-x-2">
+                        <div className="flex-1 relative">
+                          <input
+                            type="text"
+                            value={couponCode}
+                            onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                            onKeyPress={handleCouponKeyPress}
+                            onKeyDown={handleCouponInputKeyDown}
+                            placeholder="Enter coupon code (e.g., DAMN22)"
+                            className="w-full bg-white border border-[#2D3748] rounded-lg px-4 py-3 text-black placeholder-gray-400 focus:outline-none focus:border-[#0095FF] focus:ring-1 focus:ring-[#0095FF] transition-colors uppercase disabled:opacity-50 disabled:cursor-not-allowed"
+                            maxLength={6}
+                            disabled={isValidatingCoupon}
+                          />
+                          {isValidatingCoupon && (
+                            <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                              <div className="animate-spin rounded-full h-4 w-4 border-2 border-[#0095FF] border-t-transparent"></div>
+                            </div>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={validateCoupon}
+                          disabled={isValidatingCoupon || !couponCode.trim()}
+                          className="bg-[#0095FF] hover:bg-[#0080E6] disabled:opacity-50 disabled:cursor-not-allowed text-white px-6 py-3 rounded-lg font-medium transition-colors duration-200 flex items-center space-x-2"
+                        >
+                          <Tag className="w-4 h-4" />
+                          <span>{isValidatingCoupon ? "Validating..." : "Apply"}</span>
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="bg-green-50 border border-green-200 rounded-lg p-4 animate-slide-up">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-2">
+                            <CheckCircle className="w-5 h-5 text-green-500" />
+                            <div>
+                              <p className="text-green-800 font-medium">
+                                Coupon Applied: {appliedCoupon.couponCode}
+                              </p>
+                              <p className="text-green-600 text-sm">
+                                {appliedCoupon.discountPercentage}% off - You saved ₹{appliedCoupon.discountAmount}
+                              </p>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={removeCoupon}
+                            className="text-green-600 hover:text-green-800 transition-colors p-1 rounded hover:bg-green-100"
+                            title="Remove coupon"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Price Summary */}
+                  <div className="bg-gray-50 rounded-lg p-4 space-y-2 transition-all duration-300">
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600">Subtotal</span>
+                      <span className="font-medium">₹{calculateTotal()}</span>
+                    </div>
+                    {appliedCoupon && (
+                      <div className="flex justify-between items-center text-green-600 animate-fade-in">
+                        <span>Discount ({appliedCoupon.couponCode})</span>
+                        <span>-₹{appliedCoupon.discountAmount}</span>
+                      </div>
+                    )}
+                    <hr className="border-gray-200" />
+                    <div className="flex justify-between items-center text-lg font-bold">
+                      <span>Total</span>
+                      <span className="text-[#0095FF] transition-colors duration-300">
+                        ₹{calculateFinalAmount()}
+                      </span>
+                    </div>
+                  </div>
+
                   {/* Submit Button */}
                   <button
                     type="submit"
                     disabled={isSubmitting}
-                    className="w-full bg-[#0095FF] hover:bg-[#0080E6] disabled:opacity-50 disabled:cursor-not-allowed text-black py-4 px-6 rounded-lg font-medium transition-colors duration-200 flex items-center justify-center space-x-2"
+                    className="w-full bg-[#0095FF] hover:bg-[#0080E6] disabled:opacity-50 disabled:cursor-not-allowed text-white py-4 px-6 rounded-lg font-medium transition-colors duration-200 flex items-center justify-center space-x-2"
                   >
-                    {isSubmitting ? (
-                      <>
-                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                        <span>Processing...</span>
-                      </>
-                    ) : (
-                      <>
-                        <CreditCard className="w-5 h-5" />
-                        <span>Book Now - {formatPrice(calculateTotal())}</span>
-                      </>
-                    )}
+                    <CreditCard className="w-5 h-5" />
+                    <span>Proceed to Payment - {formatPrice(calculateFinalAmount())}</span>
                   </button>
                 </form>
               </div>
@@ -785,6 +1026,70 @@ export default function DynamicBookingPage() {
         </div>
       </div>
 
+      {/* Payment Modal */}
+      {showPaymentModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-slate-100 rounded-2xl p-8 border border-[#2D3748] max-w-md w-full text-center">
+            <div className="w-16 h-16 bg-[#0095FF]/20 rounded-full flex items-center justify-center mx-auto mb-4">
+              <CreditCard className="w-8 h-8 text-[#0095FF]" />
+            </div>
+            <h3 className="text-xl font-bold text-black mb-2">Complete Payment</h3>
+            <p className="text-gray-800 mb-6">
+              Pay ₹{calculateFinalAmount()} to confirm your booking for {service?.name}
+            </p>
+            
+            <div className="space-y-4">
+              <div className="bg-white rounded-lg p-4 border border-[#2D3748]">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-gray-600">Service</span>
+                  <span className="font-medium">{service?.name}</span>
+                </div>
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-gray-600">Quantity</span>
+                  <span className="font-medium">{formData.quantity}</span>
+                </div>
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-gray-600">Date & Time</span>
+                  <span className="font-medium">{formData.date} at {formData.time}</span>
+                </div>
+                {appliedCoupon && (
+                  <div className="flex justify-between items-center mb-2 text-green-600">
+                    <span>Discount ({appliedCoupon.couponCode})</span>
+                    <span>-₹{appliedCoupon.discountAmount}</span>
+                  </div>
+                )}
+                <hr className="my-2" />
+                <div className="flex justify-between items-center text-lg font-bold">
+                  <span>Total Amount</span>
+                  <span className="text-[#0095FF]">₹{calculateFinalAmount()}</span>
+                </div>
+              </div>
+
+              <div className="flex space-x-3">
+                <button
+                  onClick={() => setShowPaymentModal(false)}
+                  className="flex-1 bg-gray-500 hover:bg-gray-600 text-white py-3 px-4 rounded-lg font-medium transition-colors"
+                >
+                  Cancel
+                </button>
+                <RazorpayPayment
+                  amount={calculateFinalAmount()}
+                  onSuccess={handlePaymentSuccess}
+                  onError={handlePaymentError}
+                  disabled={isSubmitting}
+                  className="flex-1 bg-[#0095FF] hover:bg-[#0080E6] text-white py-3 px-4 rounded-lg font-medium transition-colors"
+                >
+                  <div className="flex items-center justify-center space-x-2">
+                    <CreditCard className="w-4 h-4" />
+                    <span>Pay Now</span>
+                  </div>
+                </RazorpayPayment>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Success Modal */}
       {showSuccessModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -792,9 +1097,9 @@ export default function DynamicBookingPage() {
             <div className="w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
               <CheckCircle className="w-8 h-8 text-green-400" />
             </div>
-            <h3 className="text-xl font-bold text-black mb-2">Booking Confirmed!</h3>
+            <h3 className="text-xl font-bold text-black mb-2">Payment Successful!</h3>
             <p className="text-gray-800 mb-6">
-              Your booking for {service.name} has been successfully created. You'll receive a confirmation email shortly.
+              Your booking for {service?.name} has been confirmed and payment received. You'll receive a confirmation email shortly.
             </p>
             <div className="space-y-3">
               <button

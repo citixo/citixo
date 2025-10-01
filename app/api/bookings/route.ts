@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 import connectDB from "@/lib/mongodb"
 import { CitixoBookings, CitixoUsers, CitixoServices } from "@/lib/models"
+import CitixoCoupons from "@/lib/models/CitixoCoupons"
 
 // GET - Fetch all bookings
 export async function GET(request: NextRequest) {
@@ -209,6 +210,22 @@ export async function POST(request: NextRequest) {
     const quantity = body.quantity || 1
     const totalAmount = service.basePrice * quantity
     
+    // Handle coupon discount if provided
+    let finalAmount = totalAmount
+    let discountData = {}
+    
+    if (body.discount && body.discount.couponCode) {
+      finalAmount = body.finalAmount || totalAmount
+      discountData = {
+        discount: {
+          amount: body.discount.amount || 0,
+          type: body.discount.type || 'Percentage',
+          couponCode: body.discount.couponCode,
+          discountPercentage: body.discount.discountPercentage || 0
+        }
+      }
+    }
+    
     const newBooking = new CitixoBookings({
       bookingId,
       userId: currentUserId,
@@ -235,14 +252,49 @@ export async function POST(request: NextRequest) {
       scheduledTime: body.scheduledTime,
       quantity,
       totalAmount,
-      finalAmount: totalAmount, // Will be calculated by pre-save middleware
-      status: 'Pending',
-      paymentStatus: 'Pending',
+      finalAmount,
+      ...discountData,
+      status: 'Confirmed', // Changed to Confirmed since payment is successful
+      paymentStatus: body.paymentData ? 'Paid' : 'Pending',
       notes: body.notes || '',
-      specialInstructions: body.specialInstructions || ''
+      specialInstructions: body.specialInstructions || '',
+      // Add payment details if available
+      ...(body.paymentData && {
+        paymentDetails: {
+          paymentId: body.paymentData.paymentId,
+          orderId: body.paymentData.orderId,
+          amount: body.paymentData.amount,
+          currency: body.paymentData.currency,
+          status: body.paymentData.status,
+          method: body.paymentData.method,
+          paidAt: new Date()
+        }
+      })
     })
 
     await newBooking.save()
+
+    // Mark coupon as used if applied
+    if (body.discount && body.discount.couponCode) {
+      try {
+        await CitixoCoupons.findOneAndUpdate(
+          { code: body.discount.couponCode.toUpperCase() },
+          {
+            $push: {
+              usedBy: {
+                userId: currentUserId,
+                bookingId: newBooking.bookingId,
+                usedAt: new Date()
+              }
+            },
+            $inc: { usageCount: 1 }
+          }
+        )
+      } catch (error) {
+        console.error('Error marking coupon as used:', error)
+        // Don't fail the booking if coupon marking fails
+      }
+    }
 
     // Update user and service statistics
     await Promise.all([

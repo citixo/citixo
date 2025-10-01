@@ -66,7 +66,8 @@ const CitixoBookingsSchema = new mongoose.Schema({
   discount: {
     amount: { type: Number, default: 0 },
     type: { type: String, enum: ['Fixed', 'Percentage'], default: 'Fixed' },
-    couponCode: String
+    couponCode: String,
+    discountPercentage: { type: Number, default: 0 }
   },
   finalAmount: {
     type: Number,
@@ -84,6 +85,16 @@ const CitixoBookingsSchema = new mongoose.Schema({
     type: String,
     enum: ['Pending', 'Paid', 'Failed', 'Refunded', 'Partial'],
     default: 'Pending'
+  },
+  // Payment details
+  paymentDetails: {
+    paymentId: String,
+    orderId: String,
+    amount: Number,
+    currency: { type: String, default: 'INR' },
+    status: String,
+    method: String,
+    paidAt: Date
   },
   // Professional assignment and details
   professionalId: {
