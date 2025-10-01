@@ -1,9 +1,9 @@
+"use client";
+
 import Link from "next/link";
 import Image from "next/image";
 import { Star, ArrowRight } from "lucide-react";
-import { Metadata } from "next";
-import connectDB from "@/lib/mongodb";
-import { CitixoServices, CitixoServiceCategories } from "@/lib/models";
+import { useEffect, useState } from "react";
 import ServicesInteractive from "@/components/services-interactive";
 
 interface Service {
@@ -29,71 +29,14 @@ interface ServiceCategory {
   services: Service[];
 }
 
-// Server-side data fetching
-async function getServicesPageData() {
+// Client-side data fetching
+async function fetchServicesPageData() {
   try {
-    await connectDB();
-
-        // Fetch categories and services in parallel
-    const [categories, services] = await Promise.all([
-      CitixoServiceCategories.find({ status: "Active" })
-        .sort({ displayOrder: 1, createdAt: -1 }),
-      CitixoServices.find({ status: "Active" })
-        .sort({ bookingCount: -1, 'rating.average': -1 })
-    ]);
-
-    // Create category map
-    const categoryMap = categories.reduce((map, cat) => {
-      map[cat.categoryId] = cat.name;
-      return map;
-    }, {} as Record<string, string>);
-
-    // Transform services data
-    const transformedServices = services.map((service: any) => ({
-      id: service.serviceId,
-      name: service.name,
-      description: service.description,
-      category: categoryMap[service.categoryId] || 'Uncategorized',
-      price: service.formattedPrice,
-      rating: service.rating.average,
-      reviews: service.rating.count,
-      bookings: service.bookingCount,
-      image: service.images ? service.images.url : "/placeholder.svg?height=200&width=300",
-      images: service.images || {},
-      href: `/services/${service.seo?.slug || service.serviceId}`,
-      status: service.status,
-      features: service.features,
-      includedServices: service.includedServices || [],
-      createdAt: service.createdAt
-    }));
-
-          // Create a map of services by category
-          const servicesByCategory: { [key: string]: Service[] } = {};
-          
-    transformedServices.forEach((service: Service) => {
-            if (!servicesByCategory[service.category]) {
-              servicesByCategory[service.category] = [];
-            }
-            servicesByCategory[service.category].push(service);
-          });
-
-          // Map categories with their services
-    const serviceCategories: ServiceCategory[] = categories.map((category: any) => ({
-      id: category.categoryId,
-            name: category.name,
-            description: category.description,
-            icon: category.icon,
-            color: category.color,
-            services: servicesByCategory[category.name] || []
-          }));
-
-          // Filter out categories with no active services
-    const categoriesWithServices = serviceCategories.filter(cat => cat.services.length > 0);
-
-    return {
-      serviceCategories: categoriesWithServices,
-      allCategories: ["All", ...categoriesWithServices.map((cat) => cat.name)]
-    };
+    const response = await fetch('/api/services-page');
+    if (!response.ok) {
+      throw new Error('Failed to fetch data');
+    }
+    return await response.json();
   } catch (error) {
     console.error("Error fetching services page data:", error);
     return {
@@ -103,67 +46,59 @@ async function getServicesPageData() {
   }
 }
 
-// Metadata for SEO
-export const metadata: Metadata = {
-  title: "Our Services - Professional Home Services | Citixo Services",
-  description: "Explore our comprehensive range of professional home services including cleaning, AC service, plumbing, electrical work, painting, and more. Book online with verified professionals.",
-  keywords: [
-    "home services",
-    "cleaning services",
-    "AC service",
-    "plumbing services",
-    "electrical work",
-    "painting services",
-    "carpentry",
-    "appliance repair",
-    "maintenance services",
-    "professional cleaners",
-    "home repairs",
-    "domestic services",
-    "citixo services",
-    "citox services",
-    "book online",
-    "verified professionals"
-  ],
-  openGraph: {
-    title: "Our Services - Professional Home Services | Citixo Services",
-    description: "Explore our comprehensive range of professional home services including cleaning, AC service, plumbing, electrical work, painting, and more. Book online with verified professionals.",
-    url: 'https://www.citixoservices.com/services',
-    siteName: 'Citixo Services',
-    images: [
-      {
-        url: 'https://www.citixoservices.com/images/logo.jpeg',
-        width: 1200,
-        height: 630,
-        alt: 'Citixo Services - Professional Home Services',
-        type: 'image/jpeg',
-      },
-    ],
-    locale: 'en_US',
-    type: 'website',
-  },
-  twitter: {
-    card: 'summary_large_image',
-    title: "Our Services - Professional Home Services | Citixo Services",
-    description: "Explore our comprehensive range of professional home services including cleaning, AC service, plumbing, electrical work, painting, and more.",
-    images: ['https://www.citixoservices.com/images/logo.jpeg'],
-    creator: '@citixoservices',
-    site: '@citixoservices',
-  },
-  alternates: {
-    canonical: '/services',
-  },
-};
 
-export default async function ServicesPage() {
-  // Fetch data server-side
-  const { serviceCategories, allCategories } = await getServicesPageData();
-  
-  // Ensure we have fallback data to prevent hydration issues
-  const safeServiceData = {
-    serviceCategories: serviceCategories || [],
-    allCategories: allCategories || ["All"]
-  };
+export default function ServicesPage() {
+  const [serviceData, setServiceData] = useState({
+    serviceCategories: [],
+    allCategories: ["All"]
+  });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const data = await fetchServicesPageData();
+        setServiceData(data);
+      } catch (err) {
+        setError('Failed to load services data');
+        console.error('Error loading services data:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadData();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading services...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-red-600 mb-4">{error}</p>
+          <button 
+            onClick={() => window.location.reload()} 
+            className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+          >
+            Try Again
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="py-8">
@@ -180,8 +115,8 @@ export default async function ServicesPage() {
 
         {/* Interactive Services Section */}
         <ServicesInteractive 
-          serviceCategories={safeServiceData.serviceCategories}
-          allCategories={safeServiceData.allCategories}
+          serviceCategories={serviceData.serviceCategories}
+          allCategories={serviceData.allCategories}
         />
 
 
