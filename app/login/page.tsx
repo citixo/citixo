@@ -17,8 +17,9 @@ export default function LoginPage() {
   const [remember, setRemember] = useState(false)
   const router = useRouter()
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
+    e.stopPropagation()
     setIsLoading(true)
     setError("")
 

@@ -5,7 +5,7 @@ import type React from "react"
 import { useState, useEffect } from "react"
 import { useRouter, usePathname } from "next/navigation"
 import Link from "next/link"
-import { LayoutDashboard, Settings, Users, Calendar, Package, Menu, X, LogOut, Home, User, FolderOpen } from "lucide-react"
+import { LayoutDashboard, Settings, Users, Calendar, Package, Menu, X, LogOut, Home, User, FolderOpen, Tag } from "lucide-react"
 import Brand from "@/components/Brand"
 import { toast } from "react-toastify"
 
@@ -137,6 +137,7 @@ export default function AdminLayout({
     { name: "Categories", href: "/admin/categories", icon: FolderOpen },
     { name: "Services", href: "/admin/services", icon: Settings },
     { name: "Plans", href: "/admin/plans", icon: Package },
+    { name: "Coupons", href: "/admin/coupons", icon: Tag },
     { name: "Bookings", href: "/admin/bookings", icon: Calendar },
     { name: "Users", href: "/admin/users", icon: Users },
     { name: "Settings", href: "/admin/settings", icon: Settings },

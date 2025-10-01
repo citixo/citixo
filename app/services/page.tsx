@@ -158,6 +158,12 @@ export const metadata: Metadata = {
 export default async function ServicesPage() {
   // Fetch data server-side
   const { serviceCategories, allCategories } = await getServicesPageData();
+  
+  // Ensure we have fallback data to prevent hydration issues
+  const safeServiceData = {
+    serviceCategories: serviceCategories || [],
+    allCategories: allCategories || ["All"]
+  };
 
   return (
     <div className="py-8">
@@ -174,8 +180,8 @@ export default async function ServicesPage() {
 
         {/* Interactive Services Section */}
         <ServicesInteractive 
-          serviceCategories={serviceCategories}
-          allCategories={allCategories}
+          serviceCategories={safeServiceData.serviceCategories}
+          allCategories={safeServiceData.allCategories}
         />
 
 

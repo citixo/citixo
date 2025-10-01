@@ -33,9 +33,10 @@ const signupSchema = Yup.object().shape({
     .required('Last name is required'),
   email: Yup.string()
     .email('Invalid email format')
+    .matches(/^[a-zA-Z0-9._%+-]+@gmail\.com$/, 'Please enter a valid Gmail address (e.g., yourname@gmail.com)')
     .required('Email is required'),
   phone: Yup.string()
-    .matches(/^[\+]?[1-9][\d]{0,15}$/, 'Invalid phone number')
+    .matches(/^[0-9]{10}$/, 'Phone number must be exactly 10 digits')
     .required('Phone number is required'),
   password: Yup.string()
     .min(8, 'Password must be at least 8 characters')
@@ -68,14 +69,79 @@ export default function SignupPage() {
   const [lastCheckedEmail, setLastCheckedEmail] = useState("")
   const [isRateLimited, setIsRateLimited] = useState(false)
   const [otpValidated, setOtpValidated] = useState(false)
+  const [showOtpInput, setShowOtpInput] = useState(false)
+  const [otpValues, setOtpValues] = useState(['', '', '', '', '', ''])
+  const [emailExists, setEmailExists] = useState(false)
   const checkingEmailRef = useRef(false)
   const lastRequestTimeRef = useRef(0)
   const router = useRouter()
 
+  // Validation functions
+  const validatePhone = (phone: string) => {
+    const digitsOnly = phone.replace(/\D/g, '')
+    return digitsOnly.length <= 10
+  }
+
+  const validateEmail = (email: string) => {
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@gmail\.com$/
+    return emailRegex.test(email)
+  }
+
+  // Handle OTP input change
+  const handleOtpChange = (index: number, value: string) => {
+    if (value.length > 1) return // Prevent multiple characters
+    
+    const newOtpValues = [...otpValues]
+    newOtpValues[index] = value
+    setOtpValues(newOtpValues)
+    
+    // Auto-focus next input
+    if (value && index < 5) {
+      const nextInput = document.getElementById(`otp-${index + 1}`)
+      nextInput?.focus()
+    }
+    
+    // Auto-verify when all 6 digits are entered
+    const otpString = newOtpValues.join('')
+    if (otpString.length === 6 && /^\d{6}$/.test(otpString)) {
+      handleOTPChange(otpString, lastCheckedEmail)
+    }
+  }
+
+  // Handle OTP input key events
+  const handleOtpKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Backspace' && !otpValues[index] && index > 0) {
+      const prevInput = document.getElementById(`otp-${index - 1}`)
+      prevInput?.focus()
+    }
+    
+    // Prevent non-numeric input
+    if (e.key.length === 1 && !/\d/.test(e.key)) {
+      e.preventDefault()
+    }
+  }
+
+  // Handle OTP paste
+  const handleOtpPaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    e.preventDefault()
+    const pastedText = e.clipboardData.getData('text')
+    const cleanText = pastedText.replace(/\D/g, '').slice(0, 6)
+    
+    if (cleanText.length > 0) {
+      const newOtpValues = cleanText.split('').concat(Array(6 - cleanText.length).fill(''))
+      setOtpValues(newOtpValues.slice(0, 6))
+      
+      // Auto-verify if 6 digits pasted
+      if (cleanText.length === 6 && /^\d{6}$/.test(cleanText)) {
+        handleOTPChange(cleanText, lastCheckedEmail)
+      }
+    }
+  }
+
   // OTP Timer effect
   useEffect(() => {
     let interval: NodeJS.Timeout
-    if (otpExpiryTime) {
+    if (otpExpiryTime && !otpValidated) {
       interval = setInterval(() => {
         const now = new Date()
         const remaining = Math.max(0, Math.floor((otpExpiryTime.getTime() - now.getTime()) / 1000))
@@ -85,11 +151,20 @@ export default function SignupPage() {
           setOtpSent(false)
           setOtpExpiryTime(null)
           setOtpValidated(false)
+          setShowOtpInput(false)
         }
       }, 1000)
     }
     return () => clearInterval(interval)
-  }, [otpExpiryTime])
+  }, [otpExpiryTime, otpValidated])
+
+  // Clear OTP timer when OTP is validated
+  useEffect(() => {
+    if (otpValidated) {
+      setOtpExpiryTime(null)
+      setOtpTimer(0)
+    }
+  }, [otpValidated])
 
   // Check email uniqueness and send OTP automatically
   const checkEmailAndSendOTP = async (email: string, firstName: string) => {
@@ -128,6 +203,7 @@ export default function SignupPage() {
       }
 
       if (checkData.exists) {
+        setEmailExists(true)
         setErrors({ general: ["Email already registered. Please use a different email or try logging in."] })
         return
       }
@@ -150,6 +226,7 @@ export default function SignupPage() {
 
       if (otpData.success) {
         setOtpSent(true)
+        setShowOtpInput(true)
         const expiryTime = new Date(Date.now() + 60 * 1000) // 1 minute from now
         setOtpExpiryTime(expiryTime)
         setOtpTimer(60) // 60 seconds
@@ -210,6 +287,7 @@ export default function SignupPage() {
 
       if (data.success) {
         setOtpSent(true)
+        setShowOtpInput(true)
         const expiryTime = new Date(Date.now() + 60 * 1000) // 1 minute from now
         setOtpExpiryTime(expiryTime)
         setOtpTimer(60) // 60 seconds
@@ -293,12 +371,18 @@ export default function SignupPage() {
   // Handle registration after OTP verification
   const handleRegistration = async (values: FormData) => {
     try {
+      // Create registration data with OTP from state
+      const registrationData = {
+        ...values,
+        otp: otpValues.join('')
+      }
+
       const response = await fetch('/api/auth/signup', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(values),
+        body: JSON.stringify(registrationData),
       })
 
       const data = await response.json()
@@ -324,32 +408,9 @@ export default function SignupPage() {
   }
 
   // Handle form submission
-  const handleSubmit = async (values: FormData, { setSubmitting, setFieldError }: any) => {
+  const handleSubmit = async (values: FormData, { setSubmitting }: any) => {
     try {
-      // If OTP is not sent yet, send it
-      if (!otpSent) {
-        await checkEmailAndSendOTP(values.email, values.firstName)
-        setSubmitting(false)
-        return
-      }
-
-      // If OTP is sent but not validated, verify it first
-      if (otpSent && !otpValidated && values.otp) {
-        const otpResult = await verifyOTP(values.email, values.otp)
-        
-        if (otpResult.success) {
-          setOtpValidated(true)
-          setSuccessMessage("OTP verified successfully! You can now create your account.")
-          setSubmitting(false)
-          return
-        } else {
-          setFieldError('otp', otpResult.error)
-          setSubmitting(false)
-          return
-        }
-      }
-
-      // If OTP is validated, proceed with registration
+      // Only proceed with registration if OTP is validated
       if (otpValidated) {
         await handleRegistration(values)
       }
@@ -365,6 +426,7 @@ export default function SignupPage() {
   const handleEmailChange = async (email: string, firstName: string) => {
     if (email && firstName && email !== lastCheckedEmail) {
       setLastCheckedEmail(email)
+      setEmailExists(false) // Reset email exists state when email changes
       await checkEmailAndSendOTP(email, firstName)
     }
   }
@@ -376,7 +438,7 @@ export default function SignupPage() {
   }
 
   // Auto-verify OTP when 6 digits are entered
-  const handleOTPChange = async (otp: string, email: string, setFieldError: any) => {
+  const handleOTPChange = async (otp: string, email: string, setFieldError?: any) => {
     if (otp.length === 6 && /^\d{6}$/.test(otp)) {
       console.log('Auto-verifying OTP:', otp)
       const result = await verifyOTP(email, otp)
@@ -385,14 +447,22 @@ export default function SignupPage() {
         setOtpValidated(true)
         setSuccessMessage("OTP verified successfully! You can now create your account.")
       } else {
-        setFieldError('otp', result.error)
+        if (setFieldError) {
+          setFieldError('otp', result.error)
+        } else {
+          setErrors({ general: [result.error] })
+        }
+        // Clear OTP values on error
+        setOtpValues(['', '', '', '', '', ''])
+        const firstInput = document.getElementById('otp-0')
+        firstInput?.focus()
       }
     }
   }
 
   return (
-    <div className="min-h-screen bg-white flex items-center justify-center px-4 py-8">
-      <div className="w-full max-w-md">
+    <div className="min-h-screen bg-slate-100 flex items-center justify-center px-4 py-8">
+      <div className="w-full max-w-md lg:max-w-2xl xl:max-w-4xl">
         {/* Back to Home */}
         <Link
           href="/"
@@ -403,7 +473,7 @@ export default function SignupPage() {
         </Link>
 
         {/* Signup Card */}
-        <div className="bg-white rounded-2xl p-8 border border-[#2D3748]">
+        <div className="bg-white rounded-2xl p-6 md:p-8 lg:p-10 border border-[#2D3748] shadow-lg">
           {/* Logo and Title */}
           <div className="text-center mb-8">
             <div className="flex items-center justify-center space-x-2 mb-4">
@@ -454,9 +524,9 @@ export default function SignupPage() {
             onSubmit={handleSubmit}
           >
             {({ values, errors, touched, isSubmitting, setFieldValue, setFieldError }) => (
-              <Form className="space-y-6">
+              <Form className="space-y-6 lg:space-y-8">
                 {/* Name Fields */}
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6">
                   <div>
                     <label htmlFor="firstName" className="block text-gray-900 text-sm font-medium mb-2">
                       First Name
@@ -506,249 +576,260 @@ export default function SignupPage() {
                     <Field
                       name="email"
                       type="email"
-                      placeholder="john@example.com"
+                      placeholder="yourname@gmail.com"
                       className={`w-full bg-slate-50 border rounded-lg pl-10 pr-4 py-3 text-black placeholder-gray-400 focus:outline-none focus:ring-1 transition-colors ${
-                        errors.email && touched.email ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : 'border-[#2D3748] focus:border-[#0095FF] focus:ring-[#0095FF]'
+                        errors.email && touched.email ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : 
+                        values.email && !validateEmail(values.email) ? 'border-red-500 focus:border-red-500 focus:ring-red-500' :
+                        emailExists ? 'border-red-500 focus:border-red-500 focus:ring-red-500' :
+                        'border-[#2D3748] focus:border-[#0095FF] focus:ring-[#0095FF]'
                       }`}
                       onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
                         setFieldValue('email', e.target.value)
-                        if (values.firstName && e.target.value) {
-                          handleEmailChange(e.target.value, values.firstName)
-                        }
                       }}
                     />
                     {isCheckingEmail ? (
                       <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
                         <div className="w-5 h-5 border-2 border-[#0095FF]/30 border-t-[#0095FF] rounded-full animate-spin"></div>
                       </div>
-                    ) : emailChecked && !errors.email ? (
+                    ) : emailExists ? (
+                      <AlertCircle className="absolute right-3 top-1/2 transform -translate-y-1/2 text-red-400 w-5 h-5" />
+                    ) : emailChecked && !errors.email && validateEmail(values.email) ? (
                       <CheckCircle className="absolute right-3 top-1/2 transform -translate-y-1/2 text-green-400 w-5 h-5" />
                     ) : null}
                   </div>
                   <ErrorMessage name="email" component="p" className="mt-1 text-sm text-red-400" />
+                  {values.email && !validateEmail(values.email) && (
+                    <p className="mt-1 text-sm text-red-400">Please enter a valid Gmail address (e.g., yourname@gmail.com)</p>
+                  )}
                   {isCheckingEmail && (
                     <p className="mt-1 text-sm text-[#0095FF]">Checking email availability...</p>
                   )}
-                  {emailChecked && !errors.email && (
-                    <p className="mt-1 text-sm text-green-400">✓ Email available, OTP sent!</p>
+                  {emailExists && (
+                    <p className="mt-1 text-sm text-red-400">This email is already registered. Please use a different email or try logging in.</p>
+                  )}
+                  {emailChecked && !errors.email && validateEmail(values.email) && !otpSent && !emailExists && (
+                    <p className="mt-1 text-sm text-green-400">✓ Email available</p>
                   )}
                 </div>
 
-                {/* OTP Field - Always visible */}
-                <div>
-                  <label htmlFor="otp" className="block text-gray-900 text-sm font-medium mb-2">
-                    OTP Verification
-                  </label>
-                  <div className="relative">
-                    <Field
-                      name="otp"
-                      type="text"
-                      placeholder="Enter 6-digit OTP"
-                      maxLength={6}
-                      inputMode="numeric"
-                      pattern="[0-9]*"
-                      className={`w-full bg-slate-50 border rounded-lg px-4 py-3 text-black placeholder-gray-400 focus:outline-none focus:ring-1 transition-colors text-center text-xl tracking-widest ${
-                        errors.otp && touched.otp ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : 
-                        otpValidated ? 'border-green-500 focus:border-green-500 focus:ring-green-500' :
-                        'border-[#2D3748] focus:border-[#0095FF] focus:ring-[#0095FF]'
+                {/* Send OTP Button - Only show when email is valid and OTP not sent */}
+                {values.email && validateEmail(values.email) && !otpSent && (
+                  <div className="flex justify-center">
+                    <button
+                      type="button"
+                      onClick={() => checkEmailAndSendOTP(values.email, values.firstName)}
+                      disabled={isCheckingEmail || isSendingOtp || !values.firstName || emailExists}
+                      className={`px-8 py-3 rounded-lg font-medium transition-all duration-200 ${
+                        !isCheckingEmail && !isSendingOtp && values.firstName && !emailExists
+                          ? "bg-[#0095FF] hover:bg-[#0080E6] text-white shadow-lg hover:shadow-[#0095FF]/25"
+                          : "bg-gray-600 text-gray-400 cursor-not-allowed"
                       }`}
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-                        const value = e.target.value.replace(/\D/g, '').slice(0, 6)
-                        setFieldValue('otp', value)
-                        
-                        // Auto-verify when 6 digits are entered
-                        if (value.length === 6 && /^\d{6}$/.test(value)) {
-                          handleOTPChange(value, values.email, setFieldError)
-                        }
-                      }}
-                      onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
-                        if (e.key === ' ' || (e.key.length === 1 && !/\d/.test(e.key))) {
-                          e.preventDefault()
-                        }
-                      }}
-                      onPaste={(e: React.ClipboardEvent<HTMLInputElement>) => {
-                        e.preventDefault()
-                        const pastedText = e.clipboardData.getData('text')
-                        const cleanText = pastedText.replace(/\D/g, '').slice(0, 6)
-                        setFieldValue('otp', cleanText)
-                        
-                        // Auto-verify when 6 digits are pasted
-                        if (cleanText.length === 6 && /^\d{6}$/.test(cleanText)) {
-                          handleOTPChange(cleanText, values.email, setFieldError)
-                        }
-                      }}
-                    />
-                    {otpValidated && (
-                      <CheckCircle className="absolute right-3 top-1/2 transform -translate-y-1/2 text-green-400 w-5 h-5" />
-                    )}
-                    {isLoading && values.otp && values.otp.length === 6 && (
-                      <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                        <div className="w-5 h-5 border-2 border-[#0095FF]/30 border-t-[#0095FF] rounded-full animate-spin"></div>
-                      </div>
-                    )}
-                  </div>
-                  <ErrorMessage name="otp" component="p" className="mt-1 text-sm text-red-400" />
-                  
-                  {/* OTP Status and Resend */}
-                  <div className="mt-2 flex items-center justify-between">
-                    <div className="text-sm">
-                      {otpSent ? (
-                        <span className="text-gray-600">
-                          OTP sent to <strong>{values.email}</strong>
-                        </span>
+                    >
+                      {isSendingOtp ? (
+                        <div className="flex items-center space-x-2">
+                          <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                          <span>Sending OTP...</span>
+                        </div>
+                      ) : emailExists ? (
+                        "Email Already Registered"
                       ) : (
-                        <span className="text-gray-500">Enter email and first name to receive OTP</span>
+                        "Send OTP"
                       )}
+                    </button>
+                  </div>
+                )}
+
+                {/* OTP Field - Only show when OTP is sent */}
+                {showOtpInput && (
+                  <div>
+                    <label className="block text-gray-900 text-sm font-medium mb-2">
+                      Enter OTP Verification Code
+                    </label>
+                    <div className="flex justify-center space-x-2 mb-4">
+                      {otpValues.map((value, index) => (
+                        <input
+                          key={index}
+                          id={`otp-${index}`}
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          maxLength={1}
+                          value={value}
+                          onChange={(e) => handleOtpChange(index, e.target.value)}
+                          onKeyDown={(e) => handleOtpKeyDown(index, e)}
+                          onPaste={index === 0 ? handleOtpPaste : undefined}
+                          className={`w-12 h-12 md:w-14 md:h-14 text-center text-xl font-bold border rounded-lg focus:outline-none focus:ring-2 transition-all ${
+                            errors.otp && touched.otp ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : 
+                            otpValidated ? 'border-green-500 focus:border-green-500 focus:ring-green-500' :
+                            'border-[#2D3748] focus:border-[#0095FF] focus:ring-[#0095FF]'
+                          }`}
+                          disabled={isLoading}
+                        />
+                      ))}
                     </div>
                     
-                    {otpSent && (
-                      <div className="flex items-center space-x-2">
-                        {otpTimer > 0 ? (
-                          <div className="flex items-center space-x-1 text-gray-600">
-                            <Clock className="w-4 h-4" />
-                            <span className="text-sm">Resend in {otpTimer}s</span>
-                          </div>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => resendOTP(values.email, values.firstName)}
-                            disabled={isSendingOtp || isRateLimited}
-                            className="flex items-center space-x-1 text-[#0095FF] hover:text-[#0080E6] transition-colors text-sm disabled:text-gray-400 disabled:cursor-not-allowed"
-                          >
-                            <RefreshCw className={`w-4 h-4 ${isSendingOtp ? 'animate-spin' : ''}`} />
-                            <span>{isSendingOtp ? 'Sending...' : 'Resend OTP'}</span>
-                          </button>
-                        )}
+                    {/* OTP Status and Resend */}
+                    <div className="text-center space-y-2">
+                      <div className="text-sm text-gray-600">
+                        OTP sent to <strong>{values.email}</strong>
                       </div>
+                      
+                      {otpTimer > 0 ? (
+                        <div className="flex items-center justify-center space-x-1 text-gray-600">
+                          <Clock className="w-4 h-4" />
+                          <span className="text-sm">Resend in {otpTimer}s</span>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => resendOTP(values.email, values.firstName)}
+                          disabled={isSendingOtp || isRateLimited}
+                          className="flex items-center space-x-1 text-[#0095FF] hover:text-[#0080E6] transition-colors text-sm disabled:text-gray-400 disabled:cursor-not-allowed mx-auto"
+                        >
+                          <RefreshCw className={`w-4 h-4 ${isSendingOtp ? 'animate-spin' : ''}`} />
+                          <span>{isSendingOtp ? 'Sending...' : 'Resend OTP'}</span>
+                        </button>
+                      )}
+                      
+                      {isLoading && (
+                        <div className="flex items-center justify-center space-x-2 text-[#0095FF]">
+                          <div className="w-4 h-4 border-2 border-[#0095FF]/30 border-t-[#0095FF] rounded-full animate-spin"></div>
+                          <span className="text-sm">Verifying OTP...</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Phone Field - Only show after OTP validation */}
+                {otpValidated && (
+                  <div>
+                    <label htmlFor="phone" className="block text-gray-900 text-sm font-medium mb-2">
+                      Phone Number (10 digits only)
+                    </label>
+                    <div className="relative">
+                      <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-900 w-5 h-5" />
+                      <Field
+                        name="phone"
+                        type="tel"
+                        placeholder="9876543210"
+                        maxLength={10}
+                        className={`w-full bg-slate-50 border rounded-lg pl-10 pr-4 py-3 text-black placeholder-gray-400 focus:outline-none focus:ring-1 transition-colors ${
+                          errors.phone && touched.phone ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : 
+                          values.phone && values.phone.replace(/\D/g, '').length !== 10 ? 'border-red-500 focus:border-red-500 focus:ring-red-500' :
+                          'border-[#2D3748] focus:border-[#0095FF] focus:ring-[#0095FF]'
+                        }`}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                          const value = e.target.value.replace(/\D/g, '').slice(0, 10)
+                          setFieldValue('phone', value)
+                        }}
+                      />
+                      {values.phone && values.phone.replace(/\D/g, '').length === 10 && (
+                        <CheckCircle className="absolute right-3 top-1/2 transform -translate-y-1/2 text-green-400 w-5 h-5" />
+                      )}
+                    </div>
+                    <ErrorMessage name="phone" component="p" className="mt-1 text-sm text-red-400" />
+                    {values.phone && values.phone.replace(/\D/g, '').length !== 10 && (
+                      <p className="mt-1 text-sm text-red-400">Phone number must be exactly 10 digits</p>
                     )}
                   </div>
-                </div>
+                )}
 
-                {/* Phone Field */}
-                <div>
-                  <label htmlFor="phone" className="block text-gray-900 text-sm font-medium mb-2">
-                    Phone Number
-                  </label>
-                  <div className="relative">
-                    <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-900 w-5 h-5" />
-                    <Field
-                      name="phone"
-                      type="tel"
-                      placeholder="+91 9876543210"
-                      className={`w-full bg-slate-50 border rounded-lg pl-10 pr-4 py-3 text-black placeholder-gray-400 focus:outline-none focus:ring-1 transition-colors ${
-                        errors.phone && touched.phone ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : 'border-[#2D3748] focus:border-[#0095FF] focus:ring-[#0095FF]'
-                      }`}
+                {/* Password Fields - Only show after OTP validation */}
+                {otpValidated && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6">
+                    <div>
+                      <label htmlFor="password" className="block text-gray-900 text-sm font-medium mb-2">
+                        Password
+                      </label>
+                      <div className="relative">
+                        <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-900 w-5 h-5" />
+                        <Field
+                          name="password"
+                          type={showPassword ? "text" : "password"}
+                          placeholder="Create a strong password"
+                          className={`w-full bg-slate-50 border rounded-lg pl-10 pr-12 py-3 text-black placeholder-gray-400 focus:outline-none focus:ring-1 transition-colors ${
+                            errors.password && touched.password ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : 'border-[#2D3748] focus:border-[#0095FF] focus:ring-[#0095FF]'
+                          }`}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-black transition-colors"
+                        >
+                          {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                        </button>
+                      </div>
+                      <ErrorMessage name="password" component="p" className="mt-1 text-sm text-red-400" />
+                    </div>
+
+                    <div>
+                      <label htmlFor="confirmPassword" className="block text-gray-900 text-sm font-medium mb-2">
+                        Confirm Password
+                      </label>
+                      <div className="relative">
+                        <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-900 w-5 h-5" />
+                        <Field
+                          name="confirmPassword"
+                          type={showConfirmPassword ? "text" : "password"}
+                          placeholder="Confirm your password"
+                          className={`w-full bg-slate-50 border rounded-lg pl-10 pr-12 py-3 text-black placeholder-gray-400 focus:outline-none focus:ring-1 transition-colors ${
+                            errors.confirmPassword && touched.confirmPassword ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : 'border-[#2D3748] focus:border-[#0095FF] focus:ring-[#0095FF]'
+                          }`}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                          className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-black transition-colors"
+                        >
+                          {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                        </button>
+                      </div>
+                      <ErrorMessage name="confirmPassword" component="p" className="mt-1 text-sm text-red-400" />
+                    </div>
+                  </div>
+                )}
+
+                {/* Terms and Conditions - Only show after OTP validation */}
+                {otpValidated && (
+                  <div className="flex items-start space-x-3">
+                    <input
+                      id="terms"
+                      name="terms"
+                      type="checkbox"
+                      required
+                      className="w-4 h-4 text-[#0095FF] bg-white border-[#2D3748] rounded focus:ring-[#0095FF] focus:ring-2"
                     />
-                    {values.phone && /^[\+]?[1-9][\d]{0,15}$/.test(values.phone.replace(/\s/g, '')) && (
-                      <CheckCircle className="absolute right-3 top-1/2 transform -translate-y-1/2 text-green-400 w-5 h-5" />
+                    <label htmlFor="terms" className="text-sm text-gray-400">
+                      I agree to the{" "}
+                      <Link href="/terms" className="text-[#0095FF] hover:text-[#0080E6] underline">
+                        Terms of Service
+                      </Link>{" "}
+                      and{" "}
+                      <Link href="/privacy" className="text-[#0095FF] hover:text-[#0080E6] underline">
+                        Privacy Policy
+                      </Link>
+                    </label>
+                  </div>
+                )}
+
+                {/* Submit Button - Only show after OTP validation */}
+                {otpValidated && (
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="w-full py-3 px-4 md:py-4 md:px-6 lg:py-4 lg:px-8 rounded-lg font-medium transition-all duration-200 text-sm md:text-base bg-[#0095FF] hover:bg-[#0080E6] text-white shadow-lg hover:shadow-[#0095FF]/25 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isSubmitting ? (
+                      <div className="flex items-center justify-center space-x-2">
+                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                        <span>Creating Account...</span>
+                      </div>
+                    ) : (
+                      "Create Account"
                     )}
-                  </div>
-                  <ErrorMessage name="phone" component="p" className="mt-1 text-sm text-red-400" />
-                </div>
-
-                {/* Password Field */}
-                <div>
-                  <label htmlFor="password" className="block text-gray-900 text-sm font-medium mb-2">
-                    Password
-                  </label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-900 w-5 h-5" />
-                    <Field
-                      name="password"
-                      type={showPassword ? "text" : "password"}
-                      placeholder="Create a strong password"
-                      className={`w-full bg-slate-50 border rounded-lg pl-10 pr-12 py-3 text-black placeholder-gray-400 focus:outline-none focus:ring-1 transition-colors ${
-                        errors.password && touched.password ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : 'border-[#2D3748] focus:border-[#0095FF] focus:ring-[#0095FF]'
-                      }`}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-black transition-colors"
-                    >
-                      {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                    </button>
-                  </div>
-                  <ErrorMessage name="password" component="p" className="mt-1 text-sm text-red-400" />
-                </div>
-
-                {/* Confirm Password Field */}
-                <div>
-                  <label htmlFor="confirmPassword" className="block text-gray-900 text-sm font-medium mb-2">
-                    Confirm Password
-                  </label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-900 w-5 h-5" />
-                    <Field
-                      name="confirmPassword"
-                      type={showConfirmPassword ? "text" : "password"}
-                      placeholder="Confirm your password"
-                      className={`w-full bg-slate-50 border rounded-lg pl-10 pr-12 py-3 text-black placeholder-gray-400 focus:outline-none focus:ring-1 transition-colors ${
-                        errors.confirmPassword && touched.confirmPassword ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : 'border-[#2D3748] focus:border-[#0095FF] focus:ring-[#0095FF]'
-                      }`}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-black transition-colors"
-                    >
-                      {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                    </button>
-                  </div>
-                  <ErrorMessage name="confirmPassword" component="p" className="mt-1 text-sm text-red-400" />
-                </div>
-
-                {/* Terms and Conditions */}
-                <div className="flex items-start space-x-3">
-                  <input
-                    id="terms"
-                    name="terms"
-                    type="checkbox"
-                    required
-                    className="w-4 h-4 text-[#0095FF] bg-white border-[#2D3748] rounded focus:ring-[#0095FF] focus:ring-2"
-                  />
-                  <label htmlFor="terms" className="text-sm text-gray-400">
-                    I agree to the{" "}
-                    <Link href="/terms" className="text-[#0095FF] hover:text-[#0080E6] underline">
-                      Terms of Service
-                    </Link>{" "}
-                    and{" "}
-                    <Link href="/privacy" className="text-[#0095FF] hover:text-[#0080E6] underline">
-                      Privacy Policy
-                    </Link>
-                  </label>
-                </div>
-
-                {/* Submit Button */}
-                <button
-                  type="submit"
-                  disabled={isSendingOtp || isCheckingEmail || isLoading || isRateLimited || isSubmitting}
-                  className={`w-full py-3 px-4 rounded-lg font-medium transition-all duration-200 ${
-                    !isSendingOtp && !isCheckingEmail && !isLoading && !isRateLimited && !isSubmitting
-                      ? "bg-[#0095FF] hover:bg-[#0080E6] text-white shadow-lg hover:shadow-[#0095FF]/25"
-                      : "bg-gray-600 text-gray-400 cursor-not-allowed"
-                  }`}
-                >
-                  {isSendingOtp || isCheckingEmail ? (
-                    <div className="flex items-center justify-center space-x-2">
-                      <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                      <span>{isCheckingEmail ? "Checking email..." : "Sending OTP..."}</span>
-                    </div>
-                  ) : isLoading ? (
-                    <div className="flex items-center justify-center space-x-2">
-                      <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                      <span>Verifying OTP...</span>
-                    </div>
-                  ) : isRateLimited ? (
-                    "Please wait..."
-                  ) : otpValidated ? (
-                    "Create Account"
-                  ) : otpSent ? (
-                    "Verify OTP First"
-                  ) : (
-                    "Send OTP"
-                  )}
-                </button>
+                  </button>
+                )}
               </Form>
             )}
           </Formik>

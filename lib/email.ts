@@ -31,6 +31,7 @@ export const emailTemplates = {
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
         <div style="background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
           <div style="text-align: center; margin-bottom: 30px;">
+            <img src="https://www.citixoservices.com/images/logo.jpeg" alt="Citixo Logo" style="width: 100px; height: 100px;">
             <h1 style="color: #0095FF; margin: 0; font-size: 28px;">Citixo</h1>
             <p style="color: #666; margin: 5px 0 0 0;">Your Trusted Service Partner</p>
           </div>

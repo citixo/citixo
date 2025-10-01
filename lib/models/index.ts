@@ -10,6 +10,7 @@ export { default as CitixoPayments } from './CitixoPayments'
 export { default as CitixoSettings } from './CitixoSettings'
 export { default as CitixoHelp } from './CitixoHelp'
 export { default as Citixootps } from './Citixootps'
+export { default as CitixoCoupons } from './CitixoCoupons'
 
 // Keep the old model for backward compatibility during migration
 export { default as CitixoData } from './CitixoData'
@@ -44,6 +45,7 @@ export const COLLECTION_NAMES = {
   PAYMENTS: 'CitixoPayments',
   HELP: 'CitixoHelp',
   OTPS: 'Citixootps',
+  COUPONS: 'CitixoCoupons',
   // Legacy
   DATA: 'CitixoData'
 } as const
